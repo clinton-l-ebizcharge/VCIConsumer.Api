@@ -1,0 +1,86 @@
+using Microsoft.AspNetCore.Http.Json;
+using Microsoft.OpenApi.Models;
+using Scalar.AspNetCore;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using VCIConsumer.Api.Configuration;
+using VCIConsumer.Api.Endpoints;
+using VCIConsumer.Api.Services;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddHttpContextAccessor();
+
+builder.Services.Configure<JsonOptions>(options =>
+{
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
+    options.SerializerOptions.PropertyNamingPolicy = null;
+    options.SerializerOptions.WriteIndented = false;
+    options.SerializerOptions.IncludeFields = false;
+});
+
+builder.Services.AddOpenApi();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+builder.Services.AddScoped<ICustomersService, CustomersService>();
+builder.Services.AddAntiforgery();
+
+builder.Services.Configure<ApiSettings>(builder.Configuration.GetSection("ApiSettings"));
+
+//Get the api client name from ApiSettings
+var apiClientName = builder.Configuration.GetValue<string>("ApiSettings:ApiClientName") ?? "VCIApi";
+
+builder.Services.AddHttpClient(apiClientName, client =>
+{
+    var baseUrl = builder.Configuration.GetValue<string>("ApiSettings:BaseUrl") ?? "https://api.sandbox.vericheck.com";
+    client.BaseAddress = new Uri(baseUrl);
+
+    client.DefaultRequestHeaders.Add("Accept", "application/json");    
+});
+
+builder.Services.AddAuthentication();
+
+var app = builder.Build();
+
+// Configure the HTTP request pipeline.
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+    app.MapOpenApi();
+
+    app.MapScalarApiReference(options =>
+    {
+        options.Title = "Coupon API";
+        options.Layout = ScalarLayout.Modern; // Set default layout
+        options.ShowSidebar = true; // Ensure sidebar is visible
+        options.WithForceThemeMode(ThemeMode.Dark); // Default to dark mode if preferred
+        options.WithOpenApiRoutePattern("/openapi/v1.json");
+
+        options.WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.AsyncHttp);
+    });
+};
+
+app.UseHttpsRedirection();
+
+app.UseExceptionHandler(exceptionHandlerApp =>
+{
+    exceptionHandlerApp.Run(async httpContext =>
+    {
+        var problemDetailService = httpContext.RequestServices.GetService<IProblemDetailsService>();
+        if (problemDetailService == null
+            || !await problemDetailService.TryWriteAsync(new() { HttpContext = httpContext }))
+        {
+            // Fallback behavior
+            await httpContext.Response.WriteAsync("Fallback: An error occurred.");
+        }
+    });
+});
+
+app.UseAuthentication();
+
+app.ConfigureAuthenticationEndpoints();
+app.ConfigureCustomersEndpoints();
+
+app.Run();
