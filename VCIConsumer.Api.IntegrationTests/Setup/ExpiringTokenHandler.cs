@@ -1,0 +1,37 @@
+﻿using System.Net;
+using System.Text;
+using System.Text.Json;
+using VCIConsumer.Api.Models.Responses;
+
+namespace VCIConsumer.Api.IntegrationTests.Setup;
+public class ExpiringTokenHandler : HttpMessageHandler
+{
+    private readonly int _expiresIn;
+    public string CurrentToken { get; private set; }
+    public string? NextToken { get; set; }
+    public int CallCount { get; private set; } = 0;
+
+    public ExpiringTokenHandler(string initialToken, int expiresInSeconds)
+    {
+        CurrentToken = initialToken;
+        _expiresIn = expiresInSeconds;
+    }
+
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        CallCount++;
+        var response = new AuthenticationResponse
+        {
+            AccessToken = NextToken ?? CurrentToken,
+            TokenType = "Bearer",
+            ExpiresIn = DateTime.UtcNow.AddSeconds(_expiresIn)
+        };
+
+        var json = JsonSerializer.Serialize(response);
+        return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(json, Encoding.UTF8, "application/json")
+        });
+    }
+}
+

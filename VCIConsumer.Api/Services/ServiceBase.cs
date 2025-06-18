@@ -31,7 +31,7 @@ public abstract class ServiceBase
     protected async Task<ApiResponse> APIGet<T>(string endpoint)
     {
         var client = _httpClientFactory.CreateClient("VCIApi");
-        var accessToken = await _tokenService.GetAccessTokenAsync(); // Get token  
+        var accessToken = await _tokenService.GetTokenAsync(); // Get token  
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken); // Add token to header  
 
         var response = await client.GetAsync($"{_apiSettings.BaseUrl}/{endpoint}");
@@ -41,7 +41,7 @@ public abstract class ServiceBase
     protected async Task<ApiResponse> APIPost<T>(string endpoint, HttpContent content)
     {
         var client = _httpClientFactory.CreateClient("VCIApi");
-        var accessToken = await _tokenService.GetAccessTokenAsync(); // Get token  
+        var accessToken = await _tokenService.GetTokenAsync(); // Get token  
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken); // Add token to header  
 
         var response = await client.PostAsync($"{_apiSettings.BaseUrl}/{endpoint}", content);
@@ -51,7 +51,7 @@ public abstract class ServiceBase
     protected async Task<ApiResponse> APIPatch<T>(string endpoint, HttpContent content)
     {
         var client = _httpClientFactory.CreateClient("VCIApi");
-        var accessToken = await _tokenService.GetAccessTokenAsync(); // Get token  
+        var accessToken = await _tokenService.GetTokenAsync(); // Get token  
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken); // Add token to header  
 
         var request = new HttpRequestMessage(new HttpMethod("PATCH"), $"{_apiSettings.BaseUrl}/{endpoint}")

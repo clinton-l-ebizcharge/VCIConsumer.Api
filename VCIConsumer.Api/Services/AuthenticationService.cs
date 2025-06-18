@@ -29,7 +29,7 @@ public class AuthenticationService(IHttpClientFactory httpClientFactory, ILogger
         {
             Token = responseAsJson,
             TokenType = "Bearer",
-            ExpiresIn = 3600,
+            ExpiresIn = DateTime.UtcNow.AddHours(1), 
             CreatedAt = DateTime.UtcNow
         };
 

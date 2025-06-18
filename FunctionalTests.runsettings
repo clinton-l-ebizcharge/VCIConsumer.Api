@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <RunConfiguration>
+    <!-- Disable AppDomain to prevent shadow copying issues -->
+    <DisableAppDomain>true</DisableAppDomain>
+
+    <!-- Optional: Target framework can be specified explicitly -->
+    <TargetFrameworkVersion>net9.0</TargetFrameworkVersion>
+
+    <!-- Optional: Set test output directory -->
+    <ResultsDirectory>TestResults</ResultsDirectory>
+  </RunConfiguration>
+</RunSettings>

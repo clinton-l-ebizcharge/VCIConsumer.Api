@@ -1,7 +1,15 @@
-﻿namespace VCIConsumer.Api.Models.Responses;
+﻿using System.Text.Json.Serialization;
 
-public class TokenResponse
+namespace VCIConsumer.Api.Models.Responses;
+
+public class AuthenticationResponse
 {
-    public string AccessToken { get; set; } = null!; 
-    public int ExpiresIn { get; set; } 
+    [JsonPropertyName("access_token")]
+    public required string AccessToken { get; set; }
+    [JsonPropertyName("token_type")]
+    public required string TokenType { get; set; }
+    [JsonPropertyName("expires_in")]
+    public DateTime ExpiresIn { get; set; }
 }
+
+
