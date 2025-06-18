@@ -3,9 +3,9 @@ using VCIConsumer.Api.Configuration;
 
 namespace VCIConsumer.Api.Services;
 
-public class DepositsService : ServiceBase
+public class DepositsService 
 {
-    public DepositsService(IOptions<ApiSettings> apiSettings, IHttpClientFactory httpClientFactory, TokenService tokenService) : base(apiSettings, httpClientFactory, tokenService)
+    public DepositsService(IOptions<ApiSettings> apiSettings, IHttpClientFactory httpClientFactory, TokenService tokenService) 
     {
     }
 }

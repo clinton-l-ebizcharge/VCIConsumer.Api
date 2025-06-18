@@ -52,43 +52,43 @@ public static class CustomersEndpoints
 
     [Tags("Customers")]
     private static async Task<IResult> CustomerList(
-        [FromServices] ICustomersService service,
+        [FromServices] ICustomersService customersservice,
         [FromServices] IHttpClientFactory httpClientFactory,
         string? sort = null,
         int limitPerPage = 100,
         int pageNumber = 1)
     {        
-        var response = await service.CustomerList();
+        var response = await customersservice.CustomerListAsync();
         return Results.Ok("CustomerList");
     }
 
     [Tags("Customers")]
     private static async Task<IResult> CustomerDetail(
-        [FromServices] ICustomersService service, 
+        [FromServices] ICustomersService customersservice, 
         [FromServices] IHttpClientFactory httpClientFactory, 
         string customer_uuid)
     {
-        var response = await service.CustomerDetail(customer_uuid);
+        var response = await customersservice.CustomerDetailAsync(customer_uuid);
         return Results.Ok("Customer Detail");
     }
 
     [Tags("Customers")]
     private static async Task<IResult> CustomerCreation(
-        [FromServices] ICustomersService service, 
+        [FromServices] ICustomersService customersservice, 
         [FromServices] IHttpClientFactory httpClientFactory, 
         [FromBody] CustomerCreationRequest request)
     {
-        var response = await service.CustomerCreation(request);
+        var response = await customersservice.CustomerCreationAsync(request);
        return Results.Ok("Customer Creation");
     }
 
     [Tags("Customers")]
     private static async Task<IResult> CustomerUpdate(
-        [FromServices] ICustomersService service, 
+        [FromServices] ICustomersService customersservice, 
         [FromServices] IHttpClientFactory httpClientFactory,
         [FromBody] CustomerUpdateRequest request)
     {
-        var response = await service.CustomerUpdate(request);
+        var response = await customersservice.CustomerUpdateAsync(request);
         return Results.Ok("CustomerUpdate");
     }
 

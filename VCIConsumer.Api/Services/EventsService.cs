@@ -3,9 +3,9 @@ using VCIConsumer.Api.Configuration;
 
 namespace VCIConsumer.Api.Services;
 
-public class EventsService : ServiceBase
+public class EventsService 
 {
-    public EventsService(IOptions<ApiSettings> apiSettings, IHttpClientFactory httpClientFactory, TokenService tokenService) : base(apiSettings, httpClientFactory, tokenService)
+    public EventsService(IOptions<ApiSettings> apiSettings, IHttpClientFactory httpClientFactory, TokenService tokenService)
     {
     }
 }

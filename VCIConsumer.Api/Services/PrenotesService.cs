@@ -6,13 +6,13 @@ using VCIConsumer.Api.Models.Responses;
 
 namespace VCIConsumer.Api.Services;
 
-public class PrenotesService : ServiceBase
+public class PrenotesService 
 {
     private readonly ApiSettings _apiSettings;
     private readonly IHttpClientFactory _httpClientFactory;
 
     public PrenotesService(IOptions<ApiSettings> apiSettings, IHttpClientFactory httpClientFactory, TokenService tokenService)
-        : base(apiSettings, httpClientFactory, tokenService)
+       
     {
         _apiSettings = apiSettings.Value;
         _httpClientFactory = httpClientFactory;

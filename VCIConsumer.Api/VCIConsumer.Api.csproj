@@ -10,6 +10,10 @@
   <ItemGroup>
     <Compile Remove="Models\VCIAuthResponse.cs" />
     <Compile Remove="Services\IVCIService.cs" />
+    <Compile Remove="Services\PaymentsService.cs" />
+    <Compile Remove="Services\PayoutsService.cs" />
+    <Compile Remove="Services\PrenotesService.cs" />
+    <Compile Remove="Services\RefundsService.cs" />
     <Compile Remove="Services\VCIProcessing.cs" />
     <Compile Remove="Services\VCIProcessingService.cs" />
     <Compile Remove="Services\VCIService.cs" />

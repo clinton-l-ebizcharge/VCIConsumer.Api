@@ -5,20 +5,20 @@ using VCIConsumer.Api.Models.Requests;
 using VCIConsumer.Api.Models.Responses;
 namespace VCIConsumer.Api.Services;
 
-public class TokenService(IOptions<IApiSettings> apiSettings, HttpClient httpClient, ILogger<TokenService> logger) : ITokenService
+public class TokenService(IOptions<ApiSettings> apiSettings, HttpClient httpClient, ILogger<TokenService> logger) : ITokenService
 {
     private AccessToken? _accessToken;
-    private readonly IApiSettings _apiSettings = apiSettings.Value ?? throw new ArgumentNullException(nameof(apiSettings), "API settings cannot be null.");
+    private readonly IApiSettings _apiSettings = apiSettings.Value;
     private readonly HttpClient httpClient = httpClient;
-    private readonly ILogger<TokenService> _logger = logger; 
+    private readonly ILogger<TokenService> _logger = logger;
     private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1, 1);
 
     public async Task<string> GetTokenAsync()
     {
         if (_accessToken != null && _accessToken.IsValid)
-            return _accessToken.Token; // Return cached token if valid
+            return _accessToken.Token; // Return cached token if valid  
 
-        await _semaphore.WaitAsync(); //Make sure this is awaited to prevent deadlocks
+        await _semaphore.WaitAsync(); // Make sure this is awaited to prevent deadlocks  
         try
         {
             if (string.IsNullOrEmpty(_apiSettings.ClientId) || string.IsNullOrEmpty(_apiSettings.ClientSecret))
@@ -33,7 +33,7 @@ public class TokenService(IOptions<IApiSettings> apiSettings, HttpClient httpCli
             var httpContent = JsonContent.Create(AuthenticationRequest);
             var httpResponseMessage = await httpClient.PostAsync("authentication", httpContent);
 
-            // Ensure the response is not null before accessing its properties
+            // Ensure the response is not null before accessing its properties  
             var authenticationResponse = await httpResponseMessage.Content.ReadFromJsonAsync<AuthenticationResponse>();
             if (authenticationResponse == null)
                 throw new InvalidOperationException("Authentication response is null.");
@@ -50,7 +50,7 @@ public class TokenService(IOptions<IApiSettings> apiSettings, HttpClient httpCli
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error occurred while fetching the access token."); // Use '_logger' to log the error
+            _logger.LogError(ex, "Error occurred while fetching the access token."); // Use '_logger' to log the error  
             throw;
         }
         finally

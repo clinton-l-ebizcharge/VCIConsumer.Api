@@ -3,9 +3,9 @@ using VCIConsumer.Api.Configuration;
 
 namespace VCIConsumer.Api.Services;
 
-public class OnboardService : ServiceBase
+public class OnboardService 
 {
-    public OnboardService(IOptions<ApiSettings> apiSettings, IHttpClientFactory httpClientFactory, TokenService tokenService) : base(apiSettings, httpClientFactory, tokenService)
+    public OnboardService(IOptions<ApiSettings> apiSettings, IHttpClientFactory httpClientFactory, TokenService tokenService)
     {
     }
 }

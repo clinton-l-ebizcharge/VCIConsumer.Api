@@ -1,10 +1,15 @@
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http.Json;
 using Scalar.AspNetCore;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using VCIConsumer.Api.Configuration;
 using VCIConsumer.Api.Endpoints;
+using VCIConsumer.Api.Handler;
+using VCIConsumer.Api.Models;
+using VCIConsumer.Api.Models.Responses;
 using VCIConsumer.Api.Services;
 
 namespace VCIConsumer.Api;
@@ -29,7 +34,7 @@ public partial class Program {
         builder.Services.AddSwaggerGen();
 
         builder.Services.AddScoped<ICustomersService, CustomersService>();
-        builder.Services.AddSingleton<TokenService>();
+        builder.Services.AddSingleton<ITokenService, TokenService>();
 
         builder.Services.AddAntiforgery();
 
@@ -37,6 +42,8 @@ public partial class Program {
         var configurationBuilder = new ConfigurationBuilder().AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
 
         var apiClientName = configurationBuilder.Build().GetValue<string>("ApiSettings:ApiClientName") ?? "VCIApi";
+
+        builder.Services.AddTransient<TokenHandler>();
 
         builder.Services.AddHttpClient(apiClientName, client =>
         {
@@ -46,12 +53,13 @@ public partial class Program {
             client.DefaultRequestHeaders.Accept.Clear();
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
-            client.DefaultRequestHeaders.Add("Idempotency-Key", Guid.NewGuid().ToString()); // Convert Guid to string
+            client.DefaultRequestHeaders.Add("Idempotency-Key", Guid.NewGuid().ToString());
 
-
+            var vericheckVersion = builder.Configuration.GetValue<string>("ApiSettings:VericheckVersion") ?? "1.13";
             client.DefaultRequestHeaders.Add("VeriCheck-Version", "1.13");
+
             client.DefaultRequestHeaders.Add("Content-Type", "application/json");
-        });
+        }).AddHttpMessageHandler<TokenHandler>();
 
         builder.Services.AddAuthentication();
 
@@ -69,13 +77,11 @@ public partial class Program {
                 options.Title = "VCI (Vericheck) Api Consumer";
                 options.Layout = ScalarLayout.Modern; // Set default layout
                 options.ShowSidebar = true; // Ensure sidebar is visible
-                options.WithForceThemeMode(ThemeMode.Dark); // Default to dark mode if preferred
+                //options.WithForceThemeMode(ThemeMode.Dark); // Default to dark mode if preferred
                 options.WithOpenApiRoutePattern("/openapi/v1.json");
-
                 options.WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.AsyncHttp);
             });
-        }
-        ;
+        };
 
         app.UseHttpsRedirection();
 
@@ -90,6 +96,36 @@ public partial class Program {
                     // Fallback behavior
                     await httpContext.Response.WriteAsync("Fallback: An error occurred.");
                 }
+            });
+        });
+       
+        app.UseExceptionHandler(exceptionHandlerApp =>
+        {
+            exceptionHandlerApp.Run(async context =>
+            {
+                context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+                context.Response.ContentType = "application/json";
+
+                var exceptionHandlerPathFeature = context.Features.Get<IExceptionHandlerPathFeature>();
+                var exception = exceptionHandlerPathFeature?.Error;
+
+                var errorResponse = new ApiResponse
+                {
+                    IsSuccess = false,
+                    Result = null, // Fix: Set the required 'Result' property to a default value
+                    StatusCode = HttpStatusCode.InternalServerError,
+                    Errors = new List<ErrorResponse>
+                    {
+                        new ErrorResponse
+                        {
+                            Code = "InternalServerError", // Fix: Set required 'Code' property
+                            Message = exception?.Message ?? "An unexpected error occurred.",
+                            Type = "Error" // Fix: Set required 'Type' property
+                        }
+                    }
+                };
+
+                await context.Response.WriteAsJsonAsync(errorResponse);
             });
         });
 

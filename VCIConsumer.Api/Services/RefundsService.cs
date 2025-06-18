@@ -6,12 +6,12 @@ using VCIConsumer.Api.Models.Responses;
 
 namespace VCIConsumer.Api.Services;
 
-public class RefundsService : ServiceBase
+public class RefundsService 
 {
     private readonly ApiSettings _apiSettings;
 
     public RefundsService(IOptions<ApiSettings> apiSettings, IHttpClientFactory httpClientFactory, TokenService tokenService)
-        : base(apiSettings, httpClientFactory, tokenService)
+       
     {
         _apiSettings = apiSettings.Value;
     }

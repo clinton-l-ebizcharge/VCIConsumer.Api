@@ -6,25 +6,8 @@ using VCIConsumer.Api.Models.Responses;
 
 namespace VCIConsumer.Api.Services;
 
-public class PayoutsService : ServiceBase
+public class PayoutsService(IOptions<ApiSettings> apiSettings, IHttpClientFactory httpClientFactory) 
 {
-    private readonly ApiSettings _apiSettings;
-    private readonly IHttpClientFactory _httpClientFactory;
-
-    public PayoutsService(IOptions<ApiSettings> apiSettings, IHttpClientFactory httpClientFactory)
-        : base(apiSettings, httpClientFactory, null) // Pass null for TokenService in base constructor
-    {
-        _apiSettings = apiSettings.Value;
-        _httpClientFactory = httpClientFactory;
-    }
-
-    public PayoutsService(IOptions<ApiSettings> apiSettings, IHttpClientFactory httpClientFactory, TokenService tokenService)
-        : base(apiSettings, httpClientFactory, tokenService)
-    {
-        _apiSettings = apiSettings.Value;
-        _httpClientFactory = httpClientFactory;
-    }
-
     public async Task<ApiResponse> PayoutList(Payment.PaymentStatuses paymentStatus, DateTime fromDate, DateTime todate)
     {
         Dictionary<string, string> DateParas = new Dictionary<string, string>();
@@ -61,14 +44,16 @@ public class PayoutsService : ServiceBase
             strb.Append(kv.Value);
         }
 
-        var rs = await APIGet<Payment[]>(strb.ToString());
+        ApiResponse rs = null!; 
+        // rs = await APIGet<Payment[]>(strb.ToString());
         return rs;
     }
 
     public async Task<ApiResponse> PayoutDetail(string payoutId)
     {
         payoutId = payoutId.StartsWith("POT_", StringComparison.OrdinalIgnoreCase) ? payoutId : $"POT_{payoutId}";
-        var rs = await APIGet<Payment>($"payout/{payoutId}");
+        ApiResponse rs = null!;
+        //var rs = await APIGet<Payment>($"payout/{payoutId}");
         return rs;
     }
 
@@ -83,13 +68,15 @@ public class PayoutsService : ServiceBase
             addenda
         };
 
-        var ret = await APIPost<_PaymentResult>("payouts", CreateHttpContent(requestData));
-        return ret;
+        ApiResponse rs = null!;
+        //var ret = await APIPost<_PaymentResult>("payouts", CreateHttpContent(requestData));
+        return rs;
     }
 
     public async Task<ApiResponse> PayoutUpdate(string potId, Payment.PaymentStatuses status)
     {
-        var ret = await APIPatch<_RefundResult>($"payouts/{potId}", CreateHttpContent(new { status = status.ToString().Replace("_", " ") }));
-        return ret;
+        ApiResponse rs = null!;
+        //var ret = await APIPatch<_RefundResult>($"payouts/{potId}", CreateHttpContent(new { status = status.ToString().Replace("_", " ") }));
+        return rs;
     }
 }

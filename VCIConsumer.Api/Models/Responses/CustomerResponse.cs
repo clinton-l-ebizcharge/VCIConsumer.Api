@@ -14,6 +14,7 @@ public class CustomerResponse
     public string PhoneTruncated { get; set; }
     [JsonPropertyName("email_truncated")]
     public string EmailTruncated { get; set; }
+    [JsonPropertyName("bank_account")]
     public BankAccount BankAccount { get; set; } // Nested object
     [JsonPropertyName("created_at")]
     public string CreatedAt { get; set; }

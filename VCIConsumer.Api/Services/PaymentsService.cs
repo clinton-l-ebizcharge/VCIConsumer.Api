@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Options;
+using System.Net.Http;
 using System.Text;
 using VCIConsumer.Api.Configuration;
 using VCIConsumer.Api.Models;
@@ -6,13 +7,13 @@ using VCIConsumer.Api.Models.Responses;
 
 namespace VCIConsumer.Api.Services;
 
-public class PaymentsService : ServiceBase
+public class PaymentsService 
 {
     private readonly ApiSettings _apiSettings;
     private readonly IHttpClientFactory _httpClientFactory;
 
     public PaymentsService(IOptions<ApiSettings> apiSettings, IHttpClientFactory httpClientFactory, TokenService tokenService)
-        : base(apiSettings, httpClientFactory, tokenService)
+       
     {
         _apiSettings = apiSettings.Value;
         _httpClientFactory = httpClientFactory;
@@ -53,7 +54,7 @@ public class PaymentsService : ServiceBase
             strb.Append("=");
             strb.Append(kv.Value);
         }
-
+        
         var apiResponse = await APIGet<Payment[]>(strb.ToString());
         return apiResponse;
     }
