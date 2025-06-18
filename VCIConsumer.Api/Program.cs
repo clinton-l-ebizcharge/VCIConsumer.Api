@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.OpenApi.Models;
 using Scalar.AspNetCore;
+using System.Net.Http;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using VCIConsumer.Api.Configuration;
@@ -24,12 +25,14 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 builder.Services.AddScoped<ICustomersService, CustomersService>();
+builder.Services.AddSingleton<TokenService>(); 
+
 builder.Services.AddAntiforgery();
 
 builder.Services.Configure<ApiSettings>(builder.Configuration.GetSection("ApiSettings"));
+var configurationBuilder = new ConfigurationBuilder().AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
 
-//Get the api client name from ApiSettings
-var apiClientName = builder.Configuration.GetValue<string>("ApiSettings:ApiClientName") ?? "VCIApi";
+var apiClientName = configurationBuilder.Build().GetValue<string>("ApiSettings:ApiClientName") ?? "VCIApi";
 
 builder.Services.AddHttpClient(apiClientName, client =>
 {
@@ -52,7 +55,7 @@ if (app.Environment.IsDevelopment())
 
     app.MapScalarApiReference(options =>
     {
-        options.Title = "Coupon API";
+        options.Title = "VCI (Vericheck) Api Consumer";
         options.Layout = ScalarLayout.Modern; // Set default layout
         options.ShowSidebar = true; // Ensure sidebar is visible
         options.WithForceThemeMode(ThemeMode.Dark); // Default to dark mode if preferred

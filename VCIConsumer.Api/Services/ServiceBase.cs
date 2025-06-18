@@ -1,43 +1,25 @@
-﻿using Newtonsoft.Json;
+﻿using Microsoft.Extensions.Options;
+using Newtonsoft.Json; // If you're using Newtonsoft.Json for serialization
 using System.Net.Http.Headers;
+using VCIConsumer.Api.Configuration;
 using VCIConsumer.Api.Models;
 using VCIConsumer.Api.Models.Responses;
 
 namespace VCIConsumer.Api.Services;
 
-public class ServiceBase
+public abstract class ServiceBase
 {
-    public static string SecretKey { get; set; } = string.Empty;
-    public static AccessToken AccessToken { get; set; } = null!; 
-    public static string ClientId { get; set; } = string.Empty;
-    public static bool Live { get; set; } = false;
-    public string Endpoint { get; set; } = string.Empty;
+    private readonly ApiSettings _apiSettings;
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly TokenService _tokenService; // Inject TokenService
 
-    public ServiceBase(string clientId, string secretKey)
+    protected ServiceBase(IOptions<ApiSettings> apiSettings, IHttpClientFactory httpClientFactory, TokenService tokenService)
     {
+        _apiSettings = apiSettings.Value;
+        _httpClientFactory = httpClientFactory;
+        _tokenService = tokenService;
     }
 
-    public ServiceBase()
-    {
-    }
-
-    protected async Task<ApiResponse> GetAccessToken()
-    {
-        var http = CreateHTTPClient();
-        var content = CreateHttpContent(new { client_id = ClientId, client_secret = SecretKey });
-        var httpResponseMessage = await http.PostAsync("authentication", content);
-        var response = ProcessResponse<AccessToken>(httpResponseMessage);
-        
-        ApiResponse apiResponse = new()
-        {
-            StatusCode = httpResponseMessage.StatusCode,
-            IsSuccess = httpResponseMessage.IsSuccessStatusCode,
-            Result = response, // Fix: Set the required 'Result' property
-            Errors = new List<ErrorResponse>() // Initialize Errors to avoid null reference issues
-        };
-        
-        return apiResponse;
-    }
     protected HttpContent CreateHttpContent(object data)
     {
         var json = JsonConvert.SerializeObject(data);
@@ -46,124 +28,63 @@ public class ServiceBase
         return httpContent;
     }
 
-    protected HttpClient CreateHTTPClient()
+    protected async Task<ApiResponse> APIGet<T>(string endpoint)
     {
-        HttpClient ret = new HttpClient() { BaseAddress = new Uri(Endpoint) };
-        ret.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        var client = _httpClientFactory.CreateClient("VCIApi");
+        var accessToken = await _tokenService.GetAccessTokenAsync(); // Get token  
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken); // Add token to header  
 
-        if (AccessToken != null)
-            ret.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(AccessToken.TokenType.Trim(), AccessToken.Token);
-
-        var guid = Guid.NewGuid().ToString();
-        ret.DefaultRequestHeaders.Add("Idempotency-Key", $"{guid}");
-        
-        return ret;
+        var response = await client.GetAsync($"{_apiSettings.BaseUrl}/{endpoint}");
+        return await ProcessApiResponse<T>(response); // Specify the type argument explicitly  
     }
-    protected ApiResponse ProcessResponse<TData>(HttpResponseMessage httpResponseMessage)
+
+    protected async Task<ApiResponse> APIPost<T>(string endpoint, HttpContent content)
     {
-        ApiResponse apiResponse = new()
+        var client = _httpClientFactory.CreateClient("VCIApi");
+        var accessToken = await _tokenService.GetAccessTokenAsync(); // Get token  
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken); // Add token to header  
+
+        var response = await client.PostAsync($"{_apiSettings.BaseUrl}/{endpoint}", content);
+        return await ProcessApiResponse<T>(response); // Specify the type argument explicitly  
+    }
+
+    protected async Task<ApiResponse> APIPatch<T>(string endpoint, HttpContent content)
+    {
+        var client = _httpClientFactory.CreateClient("VCIApi");
+        var accessToken = await _tokenService.GetAccessTokenAsync(); // Get token  
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken); // Add token to header  
+
+        var request = new HttpRequestMessage(new HttpMethod("PATCH"), $"{_apiSettings.BaseUrl}/{endpoint}")
         {
-            StatusCode = httpResponseMessage.StatusCode,
-            IsSuccess = httpResponseMessage.IsSuccessStatusCode,
-            Result = httpResponseMessage, // Fix: Set the required 'Result' property
-            Errors = new List<ErrorResponse>() // Initialize Errors to avoid null reference issues
+            Content = content
+        };
+        var response = await client.SendAsync(request);
+        return await ProcessApiResponse<T>(response); // Specify the type argument explicitly  
+    }
+
+    private async Task<ApiResponse> ProcessApiResponse<T>(HttpResponseMessage response)
+    {
+        var apiResponse = new ApiResponse
+        {
+            Result = default(T), // Initialize the required member 'Result'
+            Errors = new List<ErrorResponse>() // Ensure 'Errors' is initialized
         };
 
-        var response = new APIResponseResult<TData>(httpResponseMessage);
-
-        if (response.OK)
+        if (response.IsSuccessStatusCode)
         {
+            apiResponse.Result = await response.Content.ReadFromJsonAsync<T>();
             apiResponse.IsSuccess = true;
-            apiResponse.StatusCode = System.Net.HttpStatusCode.OK; // Set to OK if the response is successful
-            apiResponse.Result = response.DataObject!;
         }
         else
-            apiResponse.Errors = ProcessError(httpResponseMessage)
-                .Select(error => new ErrorResponse // Convert ErrorMessage[] to List<ErrorResponse>
-                {
-                    Code = error.code,
-                    Message = error.message,
-                    Type = error.type
-                })
-                .ToList();
-
-        return apiResponse;
-    }
-    protected ErrorMessage[] ProcessError(HttpResponseMessage mm)
-    {
-        var rs = new APIResponseResult<VCIError>(mm);
-        return rs.DataObject.Errors;
-    }
-
-    protected async Task<ApiResponse> APIPatch<TData>(string url, HttpContent data, int trialCount = 2)
-    {
-        return await APITry<TData>("PATCH", url, data, trialCount = 2);
-    }
-
-    protected async Task<ApiResponse> APIGet<TData>(string url, int trialCount = 2)
-    {
-        return await APITry<TData>("GET", url, null, trialCount = 2);
-    }
-    protected async Task<ApiResponse> APIPost<TData>(string url, HttpContent httpContent, int trialCount = 2)
-    {
-        var json = await httpContent.ReadAsStringAsync();
-        var apiResponse = await APITry<TData>("POST", url, httpContent, trialCount = 2);
-        
-        return apiResponse;
-    }
-    protected async Task<ApiResponse> APITry<TData>(string Method, string url, HttpContent? data, int trialCount = 2)
-    {
-        if (AccessToken == null || !AccessToken.IsValid)
-            await GetAccessToken();
-
-        int counter = 0;
-        ApiResponse apiResponse = null!;
-        var http = CreateHTTPClient();
-        while (++counter < trialCount)
         {
-            try
+            apiResponse.IsSuccess = false;
+            var errorContent = await response.Content.ReadAsStringAsync();
+            apiResponse.Errors.Add(new ErrorResponse
             {
-                HttpResponseMessage httpResponseMessage = null!;
-                switch (Method)
-                {
-                    case "GET":
-                        httpResponseMessage = await http.GetAsync(url);
-                        break;
-                    case "POST":
-                        httpResponseMessage = await http.PostAsync(url, data);
-                        break;
-                    default:
-                        HttpRequestMessage rq = new HttpRequestMessage(new HttpMethod(Method), url)
-                        {
-                            Content = data
-                        };
-                        httpResponseMessage = await http.SendAsync(rq);
-                        break;
-                }
-
-                var response = ProcessResponse<TData>(httpResponseMessage);
-
-                // In case of access token expired
-                //TODO:  CTL
-                //if (response != null && response.HasError && response.Errors.Any(x => x.type == "TOKEN_EXPIRED"))
-                //    await GetAccessToken(); // Get access token and repeat
-                //else
-                //    break;
-            }
-            catch (Exception ex)
-            {
-                if (counter >= trialCount)
-                {
-                    //ret = new ResponseResult<TData>
-                    //{
-                    //    Data = default!, // Set default value for Data
-                    //    JSON = string.Empty, // Set an empty string for JSON
-                    //    Errors = new ErrorMessage[] { new ErrorMessage { code = "00", message = ex.Message, type = "Lib internal" } }
-                    //};
-                }
-
-                Thread.Sleep(250);
-            }
+                Code = "HTTP_ERROR", // Provide a default value for 'Code'
+                Type = "ResponseError", // Provide a default value for 'Type'
+                Message = $"Error: {response.StatusCode} - {errorContent}"
+            });
         }
 
         return apiResponse;

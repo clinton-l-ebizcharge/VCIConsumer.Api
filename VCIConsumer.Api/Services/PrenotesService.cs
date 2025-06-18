@@ -11,7 +11,8 @@ public class PrenotesService : ServiceBase
     private readonly ApiSettings _apiSettings;
     private readonly IHttpClientFactory _httpClientFactory;
 
-    public PrenotesService(IOptions<ApiSettings> apiSettings, IHttpClientFactory httpClientFactory)
+    public PrenotesService(IOptions<ApiSettings> apiSettings, IHttpClientFactory httpClientFactory, TokenService tokenService)
+        : base(apiSettings, httpClientFactory, tokenService)
     {
         _apiSettings = apiSettings.Value;
         _httpClientFactory = httpClientFactory;
@@ -24,8 +25,6 @@ public class PrenotesService : ServiceBase
         string toDatestr = $"{todate.Year}-{todate.Month.ToString("D2")}-{todate.Day.ToString("D2")} {todate.Hour.ToString("D2")}:{todate.Minute.ToString("D2")}:{todate.Second.ToString("D2")}";
         switch (paymentStatus)
         {
-
-
             case Payment.PaymentStatuses.ORIGINATED:
                 DateParas.Add("originate_at[gte]", fromDatestr);
                 DateParas.Add("originate_at[lte]", toDatestr);
@@ -58,13 +57,14 @@ public class PrenotesService : ServiceBase
         var rs = await APIGet<Payment[]>(strb.ToString());
         return rs;
     }
+
     public async Task<ApiResponse> PrenoteDetail(string prenoteId)
     {
-
         prenoteId = prenoteId.StartsWith("NTE_", StringComparison.OrdinalIgnoreCase) ? prenoteId : $"NTE_{prenoteId}";
         var rs = await APIGet<Payment>($"prenotes/{prenoteId}");
         return rs;
     }
+
     public async Task<ApiResponse> PrenoteCreate(CustomerResult c, PaymentBase.PaymentEntries paymentEntry, double amount, string desc, string addenda)
     {
         var requestData = new
@@ -74,12 +74,12 @@ public class PrenotesService : ServiceBase
             amount,
             standard_entry_class = paymentEntry.ToString().Replace("_", " "),
             addenda
-
         };
 
         var ret = await APIPost<_RefundResult>("prenotes", CreateHttpContent(requestData));
         return ret;
     }
+
     public async Task<ApiResponse> PrenoteUpdate(string prenoteId, Payment.PaymentStatuses status)
     {
         var ret = await APIPatch<_PaymentResult>($"prenotes/{prenoteId}", CreateHttpContent(new { status = status.ToString().Replace("_", " ") }));

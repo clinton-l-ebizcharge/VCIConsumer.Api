@@ -12,6 +12,14 @@ public class PayoutsService : ServiceBase
     private readonly IHttpClientFactory _httpClientFactory;
 
     public PayoutsService(IOptions<ApiSettings> apiSettings, IHttpClientFactory httpClientFactory)
+        : base(apiSettings, httpClientFactory, null) // Pass null for TokenService in base constructor
+    {
+        _apiSettings = apiSettings.Value;
+        _httpClientFactory = httpClientFactory;
+    }
+
+    public PayoutsService(IOptions<ApiSettings> apiSettings, IHttpClientFactory httpClientFactory, TokenService tokenService)
+        : base(apiSettings, httpClientFactory, tokenService)
     {
         _apiSettings = apiSettings.Value;
         _httpClientFactory = httpClientFactory;
@@ -20,12 +28,10 @@ public class PayoutsService : ServiceBase
     public async Task<ApiResponse> PayoutList(Payment.PaymentStatuses paymentStatus, DateTime fromDate, DateTime todate)
     {
         Dictionary<string, string> DateParas = new Dictionary<string, string>();
-        string fromDatestr = $"{fromDate.Year}-{fromDate.Month.ToString("D2")}-{fromDate.Day.ToString("D2")} {fromDate.Hour.ToString("D2")}:{fromDate.Minute.ToString("D2")}:{fromDate.Second.ToString("D2")}";
-        string toDatestr = $"{todate.Year}-{todate.Month.ToString("D2")}-{todate.Day.ToString("D2")} {todate.Hour.ToString("D2")}:{todate.Minute.ToString("D2")}:{todate.Second.ToString("D2")}";
+        string fromDatestr = $"{fromDate.Year}-{fromDate.Month:D2}-{fromDate.Day:D2} {fromDate.Hour:D2}:{fromDate.Minute:D2}:{fromDate.Second:D2}";
+        string toDatestr = $"{todate.Year}-{todate.Month:D2}-{todate.Day:D2} {todate.Hour:D2}:{todate.Minute:D2}:{todate.Second:D2}";
         switch (paymentStatus)
         {
-
-
             case Payment.PaymentStatuses.ORIGINATED:
                 DateParas.Add("originate_at[gte]", fromDatestr);
                 DateParas.Add("originate_at[lte]", toDatestr);
@@ -58,13 +64,14 @@ public class PayoutsService : ServiceBase
         var rs = await APIGet<Payment[]>(strb.ToString());
         return rs;
     }
+
     public async Task<ApiResponse> PayoutDetail(string payoutId)
     {
-
         payoutId = payoutId.StartsWith("POT_", StringComparison.OrdinalIgnoreCase) ? payoutId : $"POT_{payoutId}";
         var rs = await APIGet<Payment>($"payout/{payoutId}");
         return rs;
     }
+
     public async Task<ApiResponse> PayoutCreate(_Customer c, PaymentBase.PaymentEntries paymentEntry, double amount, string desc, string addenda)
     {
         var requestData = new
@@ -74,16 +81,14 @@ public class PayoutsService : ServiceBase
             amount,
             standard_entry_class = paymentEntry.ToString().Replace("_", " "),
             addenda
-
         };
 
         var ret = await APIPost<_PaymentResult>("payouts", CreateHttpContent(requestData));
         return ret;
     }
+
     public async Task<ApiResponse> PayoutUpdate(string potId, Payment.PaymentStatuses status)
     {
-
-
         var ret = await APIPatch<_RefundResult>($"payouts/{potId}", CreateHttpContent(new { status = status.ToString().Replace("_", " ") }));
         return ret;
     }

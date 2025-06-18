@@ -11,7 +11,8 @@ public class PaymentsService : ServiceBase
     private readonly ApiSettings _apiSettings;
     private readonly IHttpClientFactory _httpClientFactory;
 
-    public PaymentsService(IOptions<ApiSettings> apiSettings, IHttpClientFactory httpClientFactory)
+    public PaymentsService(IOptions<ApiSettings> apiSettings, IHttpClientFactory httpClientFactory, TokenService tokenService)
+        : base(apiSettings, httpClientFactory, tokenService)
     {
         _apiSettings = apiSettings.Value;
         _httpClientFactory = httpClientFactory;
@@ -24,8 +25,6 @@ public class PaymentsService : ServiceBase
         string toDatestr = $"{todate.Year}-{todate.Month.ToString("D2")}-{todate.Day.ToString("D2")} {todate.Hour.ToString("D2")}:{todate.Minute.ToString("D2")}:{todate.Second.ToString("D2")}";
         switch (paymentStatus)
         {
-
-
             case Payment.PaymentStatuses.ORIGINATED:
                 DateParas.Add("originate_at[gte]", fromDatestr);
                 DateParas.Add("originate_at[lte]", toDatestr);
@@ -58,6 +57,7 @@ public class PaymentsService : ServiceBase
         var apiResponse = await APIGet<Payment[]>(strb.ToString());
         return apiResponse;
     }
+
     public async Task<ApiResponse> PaymentDetail(string paymentId)
     {
         int i = paymentId.IndexOf("_");
@@ -75,10 +75,10 @@ public class PaymentsService : ServiceBase
                 break;
         }
 
-        // paymentId = paymentId.StartsWith("PMT_", StringComparison.OrdinalIgnoreCase) ? paymentId : $"PMT_{paymentId}";
         var rs = await APIGet<Payment>($"{urlPath}/{paymentId}");
         return rs;
     }
+
     public async Task<ApiResponse> PaymentCreate(_Customer c, PaymentBase.PaymentEntries entryClass, double amount, _Check check, string description)
     {
         var requestData = new
@@ -95,14 +95,15 @@ public class PaymentsService : ServiceBase
         var httpContent = CreateHttpContent(requestData);
         var ret = await APIPost<_PaymentResult>("payments", httpContent);
 
-        //    string Log = $"{  JsonConvert.SerializeObject(this.AccessToken)}\n\n {JsonConvert.SerializeObject(requestData)}\n\n${JsonConvert.SerializeObject(ret)}";
         return ret;
     }
+
     public async Task<ApiResponse> PaymentVoid(string paymentId)
     {
         var rs = await APIPatch<_PaymentResult>($"payments/{paymentId}", CreateHttpContent(new { status = Payment.PaymentStatuses.VOID.ToString().Replace("_", " ") }));
         return rs;
     }
+
     public async Task<ApiResponse> PaymentUpdate(string paymentId, Payment.PaymentStatuses status)
     {
         var rs = await APIPatch<_PaymentResult>($"payments/{paymentId}", CreateHttpContent(new { status = status.ToString().Replace("_", " ") }));

@@ -6,7 +6,8 @@ using VCIConsumer.Api.Models.Responses;
 
 namespace VCIConsumer.Api.Services;
 
-public class CustomersService(IOptions<ApiSettings> apiSettings, IHttpClientFactory httpClientFactory) : ServiceBase, ICustomersService
+public class CustomersService(IOptions<ApiSettings> apiSettings, IHttpClientFactory httpClientFactory, TokenService tokenService)
+    : ServiceBase(apiSettings, httpClientFactory, tokenService), ICustomersService
 {
     private readonly ApiSettings _apiSettings = apiSettings.Value;
     private readonly IHttpClientFactory _httpClientFactory = httpClientFactory;

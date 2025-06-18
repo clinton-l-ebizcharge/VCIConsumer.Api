@@ -9,12 +9,11 @@ namespace VCIConsumer.Api.Services;
 public class RefundsService : ServiceBase
 {
     private readonly ApiSettings _apiSettings;
-    private readonly IHttpClientFactory _httpClientFactory;
 
-    public RefundsService(IOptions<ApiSettings> apiSettings, IHttpClientFactory httpClientFactory)
+    public RefundsService(IOptions<ApiSettings> apiSettings, IHttpClientFactory httpClientFactory, TokenService tokenService)
+        : base(apiSettings, httpClientFactory, tokenService)
     {
         _apiSettings = apiSettings.Value;
-        _httpClientFactory = httpClientFactory;
     }
 
     #region Refund
@@ -25,8 +24,6 @@ public class RefundsService : ServiceBase
         string toDatestr = $"{todate.Year}-{todate.Month.ToString("D2")}-{todate.Day.ToString("D2")} {todate.Hour.ToString("D2")}:{todate.Minute.ToString("D2")}:{todate.Second.ToString("D2")}";
         switch (paymentStatus)
         {
-
-
             case Payment.PaymentStatuses.ORIGINATED:
                 DateParas.Add("originate_at[gte]", fromDatestr);
                 DateParas.Add("originate_at[lte]", toDatestr);
@@ -59,24 +56,26 @@ public class RefundsService : ServiceBase
         var rs = await APIGet<Payment[]>(strb.ToString());
         return rs;
     }
+
     public async Task<ApiResponse> RefundDetail(string refundId)
     {
         refundId = refundId.StartsWith("RFN_", StringComparison.OrdinalIgnoreCase) ? refundId : $"RFN_{refundId}";
         var rs = await APIGet<Payment>($"refunds/{refundId}");
         return rs;
     }
+
     public async Task<ApiResponse> RefundCreate(string paymentId, double amount)
     {
         var requestData = new
         {
             original_payment_uuid = paymentId,
             amount,
-
         };
 
         var rs = await APIPost<_RefundResult>("refunds", CreateHttpContent(requestData));
         return rs;
     }
+
     public async Task<ApiResponse> RefundUpdate(string refundId, Payment.PaymentStatuses status)
     {
         var ret = await APIPatch<_RefundResult>($"refunds/{refundId}", CreateHttpContent(new { status = status.ToString().Replace("_", " ") }));
