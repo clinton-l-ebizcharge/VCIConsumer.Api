@@ -5,8 +5,9 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using VCIConsumer.Api.Models.Responses;
+using Xunit;
 
-namespace VCIConsumer.Api.IntegrationTests;
+namespace VCIConsumer.Api.UnitTests;
 public class CustomerJsonDeserializationTests
 {
     [Fact]

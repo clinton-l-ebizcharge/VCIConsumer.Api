@@ -13,7 +13,6 @@ using VCIConsumer.Api.Filter;
 using VCIConsumer.Api.Handler;
 using VCIConsumer.Api.Models;
 using VCIConsumer.Api.Models.Responses;
-using VCIConsumer.Api.RouteConstraints;
 using VCIConsumer.Api.Services;
 
 namespace VCIConsumer.Api;
@@ -74,11 +73,6 @@ public partial class Program {
         })
         .AddHttpMessageHandler<TokenHandler>()        
         .AddHttpMessageHandler<CorrelationLoggingHandler>();
-
-        builder.Services.Configure<RouteOptions>(options =>
-        {
-            options.ConstraintMap.Add("CustomerUuIdConstraint", typeof(CustomerUuIdRouteConstraint));
-        });
 
         builder.Services.AddAuthentication();
 
