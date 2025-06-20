@@ -13,5 +13,5 @@ public class CustomerCreationRequest
     [JsonPropertyName("phone")]
     public string Phone { get; set; } = string.Empty;
     [JsonPropertyName("bank_account")]
-    public BankAccount BankAccount { get; set; }
+    public BankAccountRequest BankAccount { get; set; }
 }

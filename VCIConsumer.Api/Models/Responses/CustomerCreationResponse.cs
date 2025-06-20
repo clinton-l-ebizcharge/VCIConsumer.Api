@@ -2,7 +2,7 @@
 
 namespace VCIConsumer.Api.Models.Responses;
 
-public class CustomerResponse
+public class CustomerCreationResponse
 {
     [JsonPropertyName("hrid")]
     public string HRId { get; set; }
@@ -10,12 +10,12 @@ public class CustomerResponse
     public string UUId { get; set; }
     [JsonPropertyName("name")]
     public string Name { get; set; }
-    [JsonPropertyName("phone_truncated")]
-    public string PhoneTruncated { get; set; }
     [JsonPropertyName("email_truncated")]
     public string EmailTruncated { get; set; }
+    [JsonPropertyName("phone_truncated")]
+    public string PhoneTruncated { get; set; }
     [JsonPropertyName("bank_account")]
-    public BankAccount BankAccount { get; set; } // Nested object
+    public BankAccountResponse BankAccount { get; set; } // Nested object
     [JsonPropertyName("created_at")]
     public string CreatedAt { get; set; }
     [JsonPropertyName("modified_at")]

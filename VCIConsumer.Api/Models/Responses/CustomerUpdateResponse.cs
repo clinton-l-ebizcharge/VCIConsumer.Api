@@ -13,10 +13,11 @@ public class CustomerUpdateResponse
     [JsonPropertyName("email_truncated")]
     public string EmailTruncated { get; set; }
     [JsonPropertyName("phone_truncated")]
-    public string PhoneTruncated { get; set; }
-    [JsonPropertyName("active")]   
-    public BankAccount BankAccount { get; set; } // Nested object
-    [JsonPropertyName("modified_at")]
+    public string PhoneTruncated { get; set; }    
+    [JsonPropertyName("bank_account")]
+    public BankAccountResponse BankAccount { get; set; } // Nested object    
+    [JsonPropertyName("active")]
     public bool Active { get; set; } = true; // Default to true
+    [JsonPropertyName("modified_at")]
     public string ModifiedAt { get; set; }
 }

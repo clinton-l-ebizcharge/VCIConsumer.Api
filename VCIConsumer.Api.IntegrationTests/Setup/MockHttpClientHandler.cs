@@ -23,7 +23,7 @@ public class MockHttpClientHandler : HttpMessageHandler // Define the missing Mo
         {
             AccessToken = "mock-access-token",
             TokenType = "Bearer",
-            ExpiresIn = DateTime.UtcNow.AddHours(1)
+            ExpirationDateTime = DateTime.Now.ToUniversalTime()
         };
 
         var jsonResponse = JsonSerializer.Serialize(response);

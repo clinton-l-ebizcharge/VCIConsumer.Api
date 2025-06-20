@@ -1,12 +1,17 @@
 ﻿
+using System.Text.Json.Serialization;
+
 namespace VCIConsumer.Api.Models.Requests;
 
 public class CustomerUpdateRequest
 {
-    public required string uuid { get; set; }
-    public string name { get; set; } = string.Empty;
-    public string email { get; set; } = string.Empty;
-    public string phone { get; set; } = string.Empty;
-    public bool active { get; set; }
-    BankAccount bank_account { get; set; }
+    public required string Uuid { get; set; } 
+    [JsonPropertyName("name")]
+    public required string Name { get; set; }
+    [JsonPropertyName("email")]
+    public string Email { get; set; } = string.Empty;
+    [JsonPropertyName("phone")]
+    public string Phone { get; set; } = string.Empty;
+    [JsonPropertyName("bank_account")]
+    public BankAccountRequest BankAccount { get; set; }
 }

@@ -1,14 +1,9 @@
-using Microsoft.AspNetCore.Connections;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
-using Moq.Protected;
 using System.Net;
-using System.Net.Http;
-using System.Net.Http.Json;
 using VCIConsumer.Api.Configuration;
-using VCIConsumer.Api.Models.Responses;
 using VCIConsumer.Api.Services;
 
 namespace VCIConsumer.Api.IntegrationTests.Services;
@@ -16,22 +11,26 @@ namespace VCIConsumer.Api.IntegrationTests.Services;
 public class TokenServiceTests : IClassFixture<TestServerSetup>
 {
     private readonly ITokenService _tokenService;
-    private readonly HttpClient _httpClient;
+    private readonly IHttpClientFactory _httpClientFactory;
     private readonly Mock<ILogger<TokenService>> _mockLogger;
 
     public TokenServiceTests(TestServerSetup setup)
     {
-        _httpClient = setup.CreateClient();
+        var services = new ServiceCollection();
+        services.AddHttpClient();
+        var serviceProvider = services.BuildServiceProvider();
+        _httpClientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
+
         _mockLogger = new Mock<ILogger<TokenService>>();
 
         var mockSettings = Options.Create(new ApiSettings
         {
-            BaseUrl = "https://mock-api.com",            
+            BaseUrl = "https://mock-api.com",
             ClientId = "test-client-id",
             ClientSecret = "test-client-secret"
         });
 
-        _tokenService = new TokenService(mockSettings, _httpClient, _mockLogger.Object);
+        _tokenService = new TokenService(mockSettings, _httpClientFactory, _mockLogger.Object);
     }
 
     [Fact]
@@ -52,8 +51,12 @@ public class TokenServiceTests : IClassFixture<TestServerSetup>
         var handler = new MockHttpClientHandler();
         handler.SetupSendAsync(new HttpResponseMessage(HttpStatusCode.BadRequest));
 
-        var failingHttpClient = new HttpClient(handler);
-        var failingService = new TokenService(Options.Create(new ApiSettings()), failingHttpClient, _mockLogger.Object);
+        var failingHttpClientFactory = new Mock<IHttpClientFactory>();
+        failingHttpClientFactory
+            .Setup(factory => factory.CreateClient(It.IsAny<string>()))
+            .Returns(new HttpClient(handler));
+
+        var failingService = new TokenService(Options.Create(new ApiSettings()), failingHttpClientFactory.Object, _mockLogger.Object);
 
         // Act & Assert: Expect exception due to failed API call
         await Assert.ThrowsAsync<HttpRequestException>(() => failingService.GetTokenAsync());

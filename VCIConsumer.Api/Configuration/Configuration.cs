@@ -6,6 +6,6 @@
         public string? ClientSecret { get; set; } = "NDK7Q~Xro8IVPny7TpqLw6ucIPbq7qr_-mdwa";
         public string BaseUrl { get; set; } = "https://api.sandbox.vericheck.com";
         public string ClientName { get; set; } = "VCIApi";
-        public string VeriCheckVersion { get; set; } = "1.13";
+        public string VericheckVersion { get; set; } = "1.13";
     }
 }

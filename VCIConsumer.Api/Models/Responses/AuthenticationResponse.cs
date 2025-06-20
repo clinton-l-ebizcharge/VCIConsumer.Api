@@ -1,4 +1,5 @@
 ﻿using System.Text.Json.Serialization;
+using VCIConsumer.Api.Converters;
 
 namespace VCIConsumer.Api.Models.Responses;
 
@@ -9,7 +10,8 @@ public class AuthenticationResponse
     [JsonPropertyName("token_type")]
     public required string TokenType { get; set; }
     [JsonPropertyName("expires_in")]
-    public DateTime ExpiresIn { get; set; }
+    [JsonConverter(typeof(VericheckDateTimeConverter))]
+    public DateTime ExpirationDateTime  { get; set; }
 }
 
 

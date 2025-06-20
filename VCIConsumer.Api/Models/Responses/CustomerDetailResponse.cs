@@ -1,18 +1,25 @@
 ﻿
-using VCIConsumer.Api.Models;
+using System.Text.Json.Serialization;
 
 namespace VCIConsumer.Api.Models.Responses;
 
 public class CustomerDetailResponse
 {    
-    public required string uuid { get; set; }
-    public string hrid { get; set; } = string.Empty;
-    public string name { get; set; } = string.Empty;
-    public string email_truncated { get; set; } = string.Empty;
-    public string phone_truncated { get; set; } = string.Empty;
-    public string created_at { get; set; } = string.Empty;
-    public string modified_at { get; set; } = string.Empty;
-    public BankAccount bank_account { get; set; }
-    public string active { get; set; } = string.Empty;
+    [JsonPropertyName("hrid")]
+    public string HRId { get; set; }
+    [JsonPropertyName("uuid")]
+    public string UUId { get; set; }
+    [JsonPropertyName("name")]
+    public string Name { get; set; }
+    [JsonPropertyName("email_truncated")]
+    public string EmailTruncated { get; set; }
+    [JsonPropertyName("phone_truncated")]
+    public string PhoneTruncated { get; set; }
+    [JsonPropertyName("bank_account")]
+    public BankAccountResponse BankAccount { get; set; } // Nested object    
+    [JsonPropertyName("active")]    
+    public bool Active { get; set; } = true; // Default to true
+    [JsonPropertyName("modified_at")]
+    public string ModifiedAt { get; set; }
 }
 

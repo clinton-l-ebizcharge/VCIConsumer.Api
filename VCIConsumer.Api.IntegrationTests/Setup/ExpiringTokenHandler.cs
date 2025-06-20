@@ -24,7 +24,7 @@ public class ExpiringTokenHandler : HttpMessageHandler
         {
             AccessToken = NextToken ?? CurrentToken,
             TokenType = "Bearer",
-            ExpiresIn = DateTime.UtcNow.AddSeconds(_expiresIn)
+            ExpirationDateTime = DateTime.UtcNow.AddSeconds(_expiresIn) // Corrected property name and logic
         };
 
         var json = JsonSerializer.Serialize(response);

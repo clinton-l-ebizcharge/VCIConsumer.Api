@@ -4,7 +4,7 @@ public class _PaymentResult : PaymentBase
 {
    
    // public ErrorMessage[] Warnings { get; set; }
-    public required CustomerResult customer { get; set; }
+    public required _CustomerResult customer { get; set; }
     public required bool velocity_breached { get; set; }
     public required string correlation_id { get; set; }
     public required string company_id { get; set; }

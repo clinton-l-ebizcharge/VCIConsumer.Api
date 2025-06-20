@@ -10,7 +10,7 @@ public class Payment : VCIModelbase
     public string description { get; set; } = string.Empty;
     public string addenda { get; set; } = string.Empty;
     public string standard_entry_class { get; set; } = string.Empty;
-    public CustomerResult customer { get; set; } 
+    public _CustomerResult customer { get; set; } 
 
     public string status { get; set; } = string.Empty;
     public double refunded_amount { get; set; }

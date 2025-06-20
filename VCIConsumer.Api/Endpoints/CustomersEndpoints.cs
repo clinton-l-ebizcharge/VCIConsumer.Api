@@ -1,5 +1,9 @@
 ﻿using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
+using System;
+using VCIConsumer.Api.Extensions;
+using VCIConsumer.Api.Filter;
+using VCIConsumer.Api.Models.Query;
 using VCIConsumer.Api.Models.Requests;
 using VCIConsumer.Api.Models.Responses;
 using VCIConsumer.Api.Services;
@@ -9,87 +13,85 @@ namespace VCIConsumer.Api.Endpoints;
 // Removed inheritance from EndpointsBase as static classes cannot inherit from any type.
 public static class CustomersEndpoints
 {
-    private const string ServiceName = "customers";
-
-    [Tags("Customers Endpoints")]
-    public static void ConfigureCustomersEndpoints(this WebApplication app)
+    public static void MapCustomersEndpoints(this WebApplication app)
     {
-        app.MapGet(
-            "/customers", CustomerList)
+        var group = app.MapGroup("/customers")
+               .WithTags("Customers")                
+               .WithOpenApi();
+
+        group.MapGet(
+            "/", CustomerList)
             .WithName("Customer List")
-            .Accepts<IResult>("application/json")
-            .Produces<ApiResponse>(StatusCodes.Status200OK)
-            .Produces<ApiResponse>(StatusCodes.Status400BadRequest)
-            .Produces<ApiResponse>(StatusCodes.Status401Unauthorized)            
-            .Produces<ApiResponse>(StatusCodes.Status500InternalServerError);
+            .WithStandardApiResponses()
+            .AddEndpointFilter<StandardApiFilter<List<CustomerListResponse>>>()
+            .AddEndpointFilter<StandardValidatedApiFilter<CustomerListQuery>>();
 
-        app.MapGet(
-            "/customers/{customer_uuid}", CustomerDetail)
+        group.MapGet(
+            "/{customer_uuid}", CustomerDetail)
             .WithName("Customer Detail")
-            .Accepts<IResult>("application/json")
-            .Produces<ApiResponse>(StatusCodes.Status200OK)
-            .Produces<ApiResponse>(StatusCodes.Status400BadRequest)
-            .Produces<ApiResponse>(StatusCodes.Status401Unauthorized)
-            .Produces<ApiResponse>(StatusCodes.Status500InternalServerError);
+            .WithStandardApiResponses()            
+            .AddEndpointFilter<StandardApiFilter<List<CustomerDetailResponse>>>()
+            .AddSimpleInputValidation<string>(uuid =>
+            {
+                if (string.IsNullOrWhiteSpace(uuid))
+                    return (false, "Customer UUID must not be empty.");
 
-        app.MapPost(
-            "/customers", CustomerCreation)
+                var normalizedUuid = uuid.StartsWith("CUS_", StringComparison.OrdinalIgnoreCase)
+                    ? uuid
+                    : $"CUS_{uuid}";
+
+                if (uuid.Length < 8)
+                    return (false, "Customer UUID is too short.");
+
+                return (true, null);
+            });
+
+        group.MapPost("/", CustomerCreation)
             .WithName("Customer Creation")
-            .Accepts<IResult>("application/json")
-            .Produces<ApiResponse>(StatusCodes.Status200OK)
-            .Produces<ApiResponse>(StatusCodes.Status400BadRequest)
-            .Produces<ApiResponse>(StatusCodes.Status401Unauthorized)
-            .Produces<ApiResponse>(StatusCodes.Status500InternalServerError);
+            .Accepts<CustomerCreationRequest>("application/json")
+            .WithStandardApiResponses()
+            .AddEndpointFilter<StandardApiFilter<CustomerCreationResponse>>(); 
 
-        app.MapPatch("/customers", CustomerList)
+        group.MapPatch("/", CustomerUpdate)
             .WithName("Customer Update")
-            .Accepts<IResult>("application/json")
-            .Produces<ApiResponse>(StatusCodes.Status200OK)
-            .Produces<ApiResponse>(StatusCodes.Status400BadRequest)
-            .Produces<ApiResponse>(StatusCodes.Status401Unauthorized)
-            .Produces<ApiResponse>(StatusCodes.Status500InternalServerError);
+            .Accepts<CustomerCreationRequest>("application/json")
+            .WithStandardApiResponses()
+            .AddEndpointFilter<StandardApiFilter<CustomerCreationResponse>>();
     }
 
-    [Tags("Customers")]
     private static async Task<IResult> CustomerList(
-        [FromServices] ICustomersService customersservice,
-        [FromServices] IHttpClientFactory httpClientFactory,
-        string? sort = null,
-        int limitPerPage = 100,
-        int pageNumber = 1)
+        [AsParameters] CustomerListQuery query,
+        [FromServices] ICustomersService customersservice)
     {        
-        var response = await customersservice.CustomerListAsync();
-        return Results.Ok("CustomerList");
+        var response = await customersservice.CustomerListAsync(query);
+        return response.ToSuccessResponse();
     }
 
-    [Tags("Customers")]
     private static async Task<IResult> CustomerDetail(
+        [FromRoute] string customer_uuid,
         [FromServices] ICustomersService customersservice, 
-        [FromServices] IHttpClientFactory httpClientFactory, 
-        string customer_uuid)
+        [FromServices] IHttpClientFactory httpClientFactory)
     {
         var response = await customersservice.CustomerDetailAsync(customer_uuid);
-        return Results.Ok("Customer Detail");
+        return response.ToSuccessResponse();
     }
 
-    [Tags("Customers")]
     private static async Task<IResult> CustomerCreation(
         [FromServices] ICustomersService customersservice, 
         [FromServices] IHttpClientFactory httpClientFactory, 
         [FromBody] CustomerCreationRequest request)
     {
-        var response = await customersservice.CustomerCreationAsync(request);
-       return Results.Ok("Customer Creation");
+       var response = await customersservice.CustomerCreationAsync(request);
+       return response.ToSuccessResponse();
     }
 
-    [Tags("Customers")]
     private static async Task<IResult> CustomerUpdate(
         [FromServices] ICustomersService customersservice, 
         [FromServices] IHttpClientFactory httpClientFactory,
         [FromBody] CustomerUpdateRequest request)
     {
         var response = await customersservice.CustomerUpdateAsync(request);
-        return Results.Ok("CustomerUpdate");
+        return response.ToSuccessResponse();
     }
 
     private static string GetDebuggerDisplay(this Program program) => $"{program.GetType().Name}";

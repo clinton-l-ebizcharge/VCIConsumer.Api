@@ -6,5 +6,5 @@ public interface IApiSettings
     string? ClientId { get; set; }
     string ClientName { get; set; }
     string? ClientSecret { get; set; }
-    string VeriCheckVersion { get; set; }
+    string VericheckVersion { get; set; }
 }

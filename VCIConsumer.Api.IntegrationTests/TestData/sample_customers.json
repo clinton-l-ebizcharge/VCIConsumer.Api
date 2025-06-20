@@ -1,0 +1,50 @@
+[
+  {
+    "hrid": "RKQ2PL28V936BDV",
+    "uuid": "CUS_1253058024894410752900095XNTC",
+    "name": "customer003",
+    "email_truncated": "c**@123.com",
+    "phone_truncated": "XXX-XXX-0003",
+    "bank_account": {
+      "account_type": "Savings",
+      "account_validated": false,
+      "account_number_truncated": "0003",
+      "routing_number_truncated": "0006"
+    },
+    "created_at": "2025-06-19 14:45:13 ET",
+    "modified_at": "2025-06-19 14:45:13 ET",
+    "active": true
+  },
+  {
+    "hrid": "FLG4AHUTNYJQRFL",
+    "uuid": "CUS_1253055232913764352900095XNTC",
+    "name": "Customer002",
+    "email_truncated": "c**@123.com",
+    "phone_truncated": "XXX-XXX-0002",
+    "bank_account": {
+      "account_type": "CHECKING",
+      "account_validated": false,
+      "account_number_truncated": "0002",
+      "routing_number_truncated": "0006"
+    },
+    "created_at": "2025-06-19 14:34:08 ET",
+    "modified_at": "2025-06-19 14:34:08 ET",
+    "active": true
+  },
+  {
+    "hrid": "W8ZQQX4FYVMHVLS",
+    "uuid": "CUS_1253054927467499520900095XNTC",
+    "name": "Customer001",
+    "email_truncated": "c**@123.com",
+    "phone_truncated": "XXX-XXX-0001",
+    "bank_account": {
+      "account_type": "CHECKING",
+      "account_validated": false,
+      "account_number_truncated": "0001",
+      "routing_number_truncated": "0006"
+    },
+    "created_at": "2025-06-19 14:32:55 ET",
+    "modified_at": "2025-06-19 14:35:11 ET",
+    "active": true
+  }
+]

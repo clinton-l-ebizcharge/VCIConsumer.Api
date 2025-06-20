@@ -1,55 +1,127 @@
-﻿using Microsoft.Extensions.Options;
-using System.Net.Http;
+﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
+using System.Net;
+using System.Text;
+using System.Text.Json;
 using VCIConsumer.Api.Configuration;
-using VCIConsumer.Api.Models;
+using VCIConsumer.Api.Extensions;
+using VCIConsumer.Api.Models.Query;
 using VCIConsumer.Api.Models.Requests;
 using VCIConsumer.Api.Models.Responses;
-using VCIConsumer.Api.Extensions;
 
 namespace VCIConsumer.Api.Services;
 
-public class CustomersService(IOptions<ApiSettings> apiSettings, IHttpClientFactory httpClientFactory) : ICustomersService
+public class CustomersService : ICustomersService
 {
-    private readonly ApiSettings _apiSettings = apiSettings.Value;
-    private readonly IHttpClientFactory _httpClientFactory = httpClientFactory;
+    private readonly HttpClient _httpClient;
+    private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly ILogger<CustomersService> _logger;
 
-    public async Task<IResult> CustomerListAsync()
+    public CustomersService(IHttpClientFactory httpClientFactory, IOptions<ApiSettings> apiSettings, ILogger<CustomersService> logger, IHttpContextAccessor httpContextAccessor)
     {
-        var client = _httpClientFactory.CreateClient("VCIApi");
-        var response = await client.GetAsync("customers");
+        var clientName = apiSettings.Value.ClientName ?? "VCIApi";
+        _httpClient = httpClientFactory.CreateClient(clientName);
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _httpContextAccessor = httpContextAccessor;
+    }
 
+    public async Task<List<CustomerListResponse>> CustomerListAsync(CustomerListQuery customerQuery)
+    {
+        _logger.LogInformation("Fetching customer list with Sort='{Sort}', Limit={Limit}, Page={PageNumber}",
+            customerQuery.Sort, customerQuery.Limit_Per_Page, customerQuery.Page_Number);
+
+        var queryParams = new Dictionary<string, string?>();
+
+        if (!string.IsNullOrWhiteSpace(customerQuery.Sort))
+            queryParams["sort"] = customerQuery.Sort;
+
+        if (!string.IsNullOrWhiteSpace(customerQuery.Limit_Per_Page))
+            queryParams["limit_per_page"] = customerQuery.Limit_Per_Page;
+
+        if (!string.IsNullOrWhiteSpace(customerQuery.Page_Number))
+            queryParams["page_number"] = customerQuery.Page_Number;
+
+        var uriBuilder = new UriBuilder(_httpClient.BaseAddress + "customers");
+        uriBuilder.AddQueryParameters(queryParams);
+
+        var response = await _httpClient.GetAsync(uriBuilder.Uri);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync();
+            _logger.LogWarning("Customer list fetch failed. Status: {StatusCode}, Body: {Body}",
+                response.StatusCode, errorBody);
+
+            throw new HttpRequestException($"Upstream service returned {response.StatusCode}: CUSTOMERS_FETCH_FAILED");
+        }
+
+        var customers = await response.Content.ReadFromJsonAsync<List<CustomerListResponse>>();
+
+        if (customers == null)
+        {
+            _logger.LogError("Customer list fetch returned null.");
+            throw new InvalidOperationException("Customer list fetch failed: null response.");
+        }
+
+        _logger.LogInformation("Customer list fetched successfully. Count={Count}", customers.Count);
+
+        return customers;
+    }
+
+    public async Task<CustomerDetailResponse> CustomerDetailAsync(string customerUuid)
+    {
+        _logger.LogInformation("Fetching customer detail for {CustomerUuid}", customerUuid);
+
+        var uri = new Uri(_httpClient.BaseAddress + $"customers/{customerUuid}");
+
+        var response = await _httpClient.GetAsync(uri);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync();
+            _logger.LogWarning("Customer detail fetch failed. Uuid={Uuid} | Status={StatusCode}, Body={Body}",
+                customerUuid, response.StatusCode, errorBody);
+
+            throw new HttpRequestException($"CUSTOMER_DETAIL_FETCH_FAILED ({(int)response.StatusCode})");
+        }
+
+        var customer = await response.Content.ReadFromJsonAsync<CustomerDetailResponse>();
+
+        if (customer == null)
+        {
+            _logger.LogError("Customer detail response deserialized as null. Uuid={Uuid}", customerUuid);
+            throw new InvalidOperationException("Customer detail fetch failed: null response.");
+        }
+
+        _logger.LogInformation("Customer detail fetched successfully. Name={Name}, Uuid={Uuid}",
+            customer.Name, customer.UUId);
+
+        return customer;
+    }
+
+    public async Task<CustomerCreationResponse> CustomerCreationAsync(CustomerCreationRequest request)
+    {
+        _logger.LogInformation($"Creating new customer: {request.Name}, {request.Email}");
+
+        var httpContent = JsonContent.Create(request);
+        var response = await _httpClient.PostAsync("customers", httpContent);
         response.EnsureSuccessStatusCode();
-        return Results.Ok(response);
+
+        var createdCustomer = await response.Content.ReadFromJsonAsync<CustomerCreationResponse>();
+
+        _logger.LogInformation("Customer created successfully. UUID: {Uuid}", createdCustomer?.UUId);
+        return createdCustomer!;
     }
 
-    public async Task<IResult> CustomerDetailAsync(string customer_uuid)
+    public async Task<CustomerUpdateResponse> CustomerUpdateAsync(CustomerUpdateRequest request)
     {
-        customer_uuid = customer_uuid.StartsWith("CUS_", StringComparison.OrdinalIgnoreCase) ? customer_uuid : $"CUS_{customer_uuid}";
-        var client = _httpClientFactory.CreateClient("VCIApi");
-        var response = await client.GetAsync($"customers/{customer_uuid}");
-        return Results.Ok(response);
-    }
+        _logger.LogInformation("Updating customer {Uuid}", request.Uuid);
 
-    public async Task<IResult> CustomerCreationAsync(CustomerCreationRequest request)
-    {        
-        var client = _httpClientFactory.CreateClient("VCIApi");
         var httpContent = JsonContent.Create(request);
-        var response = await client.PostAsync("customers", httpContent);
+        var response = await _httpClient.PatchAsync("customers", httpContent);
+        response.EnsureSuccessStatusCode();
 
-        // Fix: Access the error message directly as a string instead of trying to access a non-existent 'code' property.
-        //if (!apiResponse.IsSuccess && apiResponse.Errors.Count > 0 && apiResponse.Errors[0].Contains("CU028"))
-        //{
-        //    return Results.Problem(detail: apiResponse.Errors[0]);
-        //}
-
-        return Results.Ok(response);
-    }
-
-    public async Task<IResult> CustomerUpdateAsync(CustomerUpdateRequest request)
-    {
-        var client = _httpClientFactory.CreateClient("VCIApi");
-        var httpContent = JsonContent.Create(request);
-        var response = await client.PatchAsync("customers", httpContent);
-        return Results.Ok(response);
+        var updated = await response.Content.ReadFromJsonAsync<CustomerUpdateResponse>();
+        return updated!;
     }
 }

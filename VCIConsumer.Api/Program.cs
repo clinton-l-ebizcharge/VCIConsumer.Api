@@ -1,3 +1,5 @@
+using FluentValidation;
+using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http.Json;
 using Scalar.AspNetCore;
@@ -7,9 +9,11 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using VCIConsumer.Api.Configuration;
 using VCIConsumer.Api.Endpoints;
+using VCIConsumer.Api.Filter;
 using VCIConsumer.Api.Handler;
 using VCIConsumer.Api.Models;
 using VCIConsumer.Api.Models.Responses;
+using VCIConsumer.Api.RouteConstraints;
 using VCIConsumer.Api.Services;
 
 namespace VCIConsumer.Api;
@@ -33,17 +37,30 @@ public partial class Program {
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen();
 
+        builder.Services.AddFluentValidationAutoValidation();
+        builder.Services.AddValidatorsFromAssemblyContaining<CustomerQueryValidator>();
+        builder.Services.AddScoped(typeof(StandardValidatedApiFilter<>));
+
         builder.Services.AddScoped<ICustomersService, CustomersService>();
+        builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
         builder.Services.AddSingleton<ITokenService, TokenService>();
 
+        //builder.Services.AddSingleton<IEndpointFilterFactory, StandardApiFilterFactory>();
+        
         builder.Services.AddAntiforgery();
 
-        builder.Services.Configure<ApiSettings>(builder.Configuration.GetSection("ApiSettings"));
+        builder.Services.Configure<LoggingOptions>(builder.Configuration.GetSection("LoggingOptions"));
+
+        builder.Services.Configure<ApiSettings>(builder.Configuration.GetSection("ApiSettings"));        
         var configurationBuilder = new ConfigurationBuilder().AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
 
         var apiClientName = configurationBuilder.Build().GetValue<string>("ApiSettings:ApiClientName") ?? "VCIApi";
 
+        builder.Services.AddHttpContextAccessor();
+        
+        //Handlers as transients
         builder.Services.AddTransient<TokenHandler>();
+        builder.Services.AddTransient<CorrelationLoggingHandler>();
 
         builder.Services.AddHttpClient(apiClientName, client =>
         {
@@ -51,15 +68,17 @@ public partial class Program {
             client.BaseAddress = new Uri(baseUrl);
 
             client.DefaultRequestHeaders.Accept.Clear();
-            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
-            client.DefaultRequestHeaders.Add("Idempotency-Key", Guid.NewGuid().ToString());
-
+            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));            
             var vericheckVersion = builder.Configuration.GetValue<string>("ApiSettings:VericheckVersion") ?? "1.13";
-            client.DefaultRequestHeaders.Add("VeriCheck-Version", "1.13");
+            client.DefaultRequestHeaders.Add("VeriCheck-Version", vericheckVersion);            
+        })
+        .AddHttpMessageHandler<TokenHandler>()        
+        .AddHttpMessageHandler<CorrelationLoggingHandler>();
 
-            client.DefaultRequestHeaders.Add("Content-Type", "application/json");
-        }).AddHttpMessageHandler<TokenHandler>();
+        builder.Services.Configure<RouteOptions>(options =>
+        {
+            options.ConstraintMap.Add("CustomerUuIdConstraint", typeof(CustomerUuIdRouteConstraint));
+        });
 
         builder.Services.AddAuthentication();
 
@@ -132,7 +151,7 @@ public partial class Program {
         app.UseAuthentication();
 
         app.ConfigureAuthenticationEndpoints();
-        app.ConfigureCustomersEndpoints();
+        app.MapCustomersEndpoints();
 
         app.Run();
     }

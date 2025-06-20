@@ -8,7 +8,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Filter\StandardApiFilterFactory.cs" />
     <Compile Remove="Models\VCIAuthResponse.cs" />
+    <Compile Remove="Services\APIConsumption.cs" />
     <Compile Remove="Services\IVCIService.cs" />
     <Compile Remove="Services\PaymentsService.cs" />
     <Compile Remove="Services\PayoutsService.cs" />
@@ -22,6 +24,7 @@
   <ItemGroup>
     <PackageReference Include="AutoMapper" Version="14.0.0" />
     <PackageReference Include="FluentValidation" Version="12.0.0" />
+    <PackageReference Include="FluentValidation.AspNetCore" Version="11.3.1" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.5" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
     <PackageReference Include="Scalar.AspNetCore" Version="2.4.16" />
