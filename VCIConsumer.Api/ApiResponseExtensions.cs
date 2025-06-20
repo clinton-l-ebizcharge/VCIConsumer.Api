@@ -1,5 +1,4 @@
-﻿using VCIConsumer.Api.Models;
-using VCIConsumer.Api.Models.Responses;
+﻿using VCIConsumer.Api.Models.Responses;
 using System.Net;
 
 namespace VCIConsumer.Api.Extensions;

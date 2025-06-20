@@ -35,7 +35,7 @@ public class CorrelationLoggingHandler : DelegatingHandler
         {
             var rawBody = await request.Content.ReadAsStringAsync(cancellationToken);
 
-            _logger.LogApiRequest("Outbound HTTP Request", new
+            _logger.LogApiRequest("Outbound HTTP Request ", new
             {
                 request.Method,
                 request.RequestUri,

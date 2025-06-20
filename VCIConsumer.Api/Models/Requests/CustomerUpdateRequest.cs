@@ -5,7 +5,8 @@ namespace VCIConsumer.Api.Models.Requests;
 
 public class CustomerUpdateRequest
 {
-    public required string Uuid { get; set; } 
+    [JsonPropertyName("uuid")]
+    public required string UUId { get; set; } 
     [JsonPropertyName("name")]
     public required string Name { get; set; }
     [JsonPropertyName("email")]

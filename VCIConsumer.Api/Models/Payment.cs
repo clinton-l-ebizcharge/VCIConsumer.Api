@@ -1,6 +1,6 @@
 ﻿namespace VCIConsumer.Api.Models;
 
-public class Payment : VCIModelbase
+public class payment : VCIModelbase
 {
     public enum PaymentStatuses { ACCEPTED, ERROR, ORIGINATED, SETTLED, PARTIAL_SETTLED, VERIFYING, VOID, RETURN, NSF_DECLINED }
 
@@ -23,7 +23,7 @@ public class Payment : VCIModelbase
         check_image_back = string.Empty
     };
 
-    public Payment()
+    public payment()
     {
         city = "XXXX";
         state = "YY";

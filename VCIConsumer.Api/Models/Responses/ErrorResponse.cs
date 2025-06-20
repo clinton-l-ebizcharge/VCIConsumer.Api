@@ -1,4 +1,4 @@
-﻿namespace VCIConsumer.Api.Models;
+﻿namespace VCIConsumer.Api.Models.Responses;
 
 using System.Collections.Generic;
 using System.Text.Json.Serialization;

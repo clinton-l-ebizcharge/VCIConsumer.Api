@@ -5,11 +5,14 @@ namespace VCIConsumer.Api.Models.Responses;
 public class BankAccountResponse
 {
     [JsonPropertyName("account_type")]
-    public required string AccountType { get; set; }
+    public string AccountType { get; set; }
+
     [JsonPropertyName("account_validated")]
-    public bool AccountValidated { get; set; }  
+    public bool AccountValidated { get; set; }
+
     [JsonPropertyName("account_number_truncated")]
-    public required string AccountNumber { get; set; }
+    public string AccountNumberTruncated { get; set; }
+
     [JsonPropertyName("routing_number_truncated")]
-    public required string RoutingNumber { get; set; }
+    public string RoutingNumberTruncated { get; set; }
 }

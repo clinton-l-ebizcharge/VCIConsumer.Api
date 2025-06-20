@@ -1,6 +1,5 @@
 ﻿using System.Net;
 using System.Reflection;
-using VCIConsumer.Api.Models;
 using VCIConsumer.Api.Models.Responses;
 
 namespace VCIConsumer.Api.Filter;

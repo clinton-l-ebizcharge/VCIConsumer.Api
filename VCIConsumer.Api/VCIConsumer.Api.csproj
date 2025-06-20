@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <Compile Remove="Filter\StandardApiFilterFactory.cs" />
+    <Compile Remove="Models\payment.cs" />
     <Compile Remove="Models\VCIAuthResponse.cs" />
     <Compile Remove="Services\APIConsumption.cs" />
     <Compile Remove="Services\IVCIService.cs" />

@@ -115,7 +115,7 @@ public class CustomersService : ICustomersService
 
     public async Task<CustomerUpdateResponse> CustomerUpdateAsync(CustomerUpdateRequest request)
     {
-        _logger.LogInformation("Updating customer {Uuid}", request.Uuid);
+        _logger.LogInformation("Updating customer {Uuid}", request.UUId);
 
         var httpContent = JsonContent.Create(request);
         var response = await _httpClient.PatchAsync("customers", httpContent);
