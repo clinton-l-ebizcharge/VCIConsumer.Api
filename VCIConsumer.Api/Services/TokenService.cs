@@ -1,42 +1,41 @@
-﻿using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Options;
-using System;
-using System.Net.Http;
+﻿using Microsoft.Extensions.Options;
 using System.Text;
 using System.Text.Json;
 using VCIConsumer.Api.Configuration;
+using VCIConsumer.Api.Extensions;
 using VCIConsumer.Api.Models;
 using VCIConsumer.Api.Models.Requests;
 using VCIConsumer.Api.Models.Responses;
-namespace VCIConsumer.Api.Services;
+using VCIConsumer.Api.Services;
 
-public class TokenService(IOptions<ApiSettings> apiSettings, IHttpClientFactory httpClientFactory, ILogger<TokenService> logger) : ITokenService
+public class TokenService(
+    IOptions<ApiSettings> apiSettings,
+    IHttpClientFactory httpClientFactory,
+    ILogger<TokenService> logger,
+    ITimeProvider clock) : ITokenService
 {
     private AccessToken? _accessToken;
     private readonly IApiSettings _apiSettings = apiSettings.Value;
     private readonly ILogger<TokenService> _logger = logger;
-    private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1, 1);
+    private readonly ITimeProvider _clock = clock;
+    private readonly SemaphoreSlim _semaphore = new(1, 1);
 
     public async Task<string> GetTokenAsync()
     {
-        if (_accessToken != null && _accessToken.IsValid)
+        if (_accessToken is not null && !_accessToken.IsExpired(_clock))
         {
             _logger.LogInformation("Access token retrieved from memory.");
-            return _accessToken.Token; 
+            return _accessToken.Token;
         }
 
-        await _semaphore.WaitAsync(); // Make sure this is awaited to prevent deadlocks
+        await _semaphore.WaitAsync();
         try
         {
             if (string.IsNullOrEmpty(_apiSettings.ClientId) || string.IsNullOrEmpty(_apiSettings.ClientSecret))
-                throw new InvalidOperationException("ClientId or ClientSecret is not configured in API settings.");
+                throw new InvalidOperationException("ClientId or ClientSecret is not configured.");
 
             var httpClient = httpClientFactory.CreateClient();
             httpClient.BaseAddress = new Uri(_apiSettings.BaseUrl);
-
-            httpClient.DefaultRequestHeaders.Add("Idempotency-Key", Guid.NewGuid().ToString());
-            var vericheckVersion = _apiSettings.VericheckVersion ?? "1.13"; // Default to "1.13" if not set in configuration
-            httpClient.DefaultRequestHeaders.Add("VeriCheck-Version", vericheckVersion);
 
             var authRequest = new AuthenticationRequest
             {
@@ -45,35 +44,36 @@ public class TokenService(IOptions<ApiSettings> apiSettings, IHttpClientFactory 
             };
 
             var json = JsonSerializer.Serialize(authRequest);
+            var vericheckVersion = _apiSettings.VericheckVersion ?? "1.13";
+
             var request = new HttpRequestMessage(HttpMethod.Post, "authentication")
             {
                 Content = new StringContent(json, Encoding.UTF8, "application/json")
             };
+            request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+            request.Headers.Add("VeriCheck-Version", vericheckVersion);
 
-            var httpResponseMessage = await httpClient.SendAsync(request);
-            httpResponseMessage.EnsureSuccessStatusCode();
+            var response = await httpClient.SendAsync(request);
+            response.EnsureSuccessStatusCode();
 
-            var authenticationResponse = await httpResponseMessage.Content.ReadFromJsonAsync<AuthenticationResponse>();
-
-            if (authenticationResponse == null)
-            {
+            var authResponse = await response.Content.ReadFromJsonAsync<AuthenticationResponse>();
+            if (authResponse == null)
                 throw new InvalidOperationException("Authentication response is null.");
-            }
 
-            _accessToken = new AccessToken()
+            _accessToken = new AccessToken
             {
-                Token = authenticationResponse.AccessToken,
-                TokenType = authenticationResponse.TokenType,
-                CreatedAt = DateTime.Now.ToUniversalTime(),
-                ExpiresAt = authenticationResponse.ExpirationDateTime
+                Token = authResponse.AccessToken,
+                TokenType = authResponse.TokenType,
+                CreatedAt = _clock.UtcNow,
+                ExpiresAt = authResponse.ExpirationDateTime.AsUtc()
             };
 
-            _logger.LogInformation($"Issued new access token via /authentication at {_accessToken.CreatedAt}");
+            _logger.LogInformation("Issued new access token at {CreatedAt}, Expires at {ExpiresAt}", _accessToken.CreatedAt, _accessToken.ExpiresAt);
             return _accessToken.Token;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error occurred while fetching the access token."); // Use '_logger' to log the error  
+            _logger.LogError(ex, "Error fetching access token.");
             throw;
         }
         finally
@@ -82,5 +82,3 @@ public class TokenService(IOptions<ApiSettings> apiSettings, IHttpClientFactory 
         }
     }
 }
-
-

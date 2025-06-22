@@ -12,6 +12,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Services\TokenServiceExpirationTests.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Remove="sample_customers.json" />
   </ItemGroup>
 

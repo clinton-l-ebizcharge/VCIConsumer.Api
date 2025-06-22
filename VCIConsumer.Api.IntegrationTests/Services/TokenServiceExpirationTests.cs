@@ -1,84 +1,117 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 using System;
-using System.Collections.Generic;
-using System.Linq;
+using System.Net.Http;
+using System.Reflection.Metadata;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using VCIConsumer.Api.Configuration;
 using VCIConsumer.Api.IntegrationTests.Setup;
+using VCIConsumer.Api.IntegrationTests.Support;
+using VCIConsumer.Api.Models;
 using VCIConsumer.Api.Services;
+using Xunit;
 
 namespace VCIConsumer.Api.IntegrationTests.Services;
 
-public class TokenServiceExpirationTests
+public class TokenServiceExpirationTests : IClassFixture<TestServerSetup>
 {
+    private readonly ITokenService _tokenService;
     private readonly Mock<ILogger<TokenService>> _mockLogger = new();
+    private readonly Mock<ITimeProvider> _clockMock;
+    private readonly ExpiringTokenHandler _ExpiringTokenhandler;
 
-    private readonly ApiSettings _mockSettings = new()
+    public TokenServiceExpirationTests(TestServerSetup factory)
     {
-        ClientId = "test-client-id",
-        ClientSecret = "test-client-secret",
-        BaseUrl = "https://mock-api.com",
-    };
+        _clockMock = factory.ClockMock;
 
-    private readonly IHttpClientFactory _mockHttpClientFactory;
-
-    public TokenServiceExpirationTests()
-    {
-        // Setup IHttpClientFactory mock
-        var handler = new ExpiringTokenHandler("cached-token", expiresInSeconds: 3600);
-        var client = new HttpClient(handler)
-        {
-            BaseAddress = new Uri(_mockSettings.BaseUrl)
-        };
+        // Inject a known expiring token
+        _ExpiringTokenhandler = new ExpiringTokenHandler("initial-token", DateTime.UtcNow.AddSeconds(1));
+        var client = new HttpClient(_ExpiringTokenhandler) { BaseAddress = new Uri("https://mock-api.com") };
 
         var mockFactory = new Mock<IHttpClientFactory>();
-        mockFactory.Setup(f => f.CreateClient(It.IsAny<string>())).Returns(client);
-        _mockHttpClientFactory = mockFactory.Object;
+        mockFactory.Setup(f => f.CreateClient(It.IsAny<string>()))
+                   .Returns(() => new HttpClient(Handler)
+                   {
+                       BaseAddress = new Uri(baseUrl ?? "https://mock-api.com")
+                   });
+
+        var settings = Options.Create(new ApiSettings
+        {
+            ClientId = "test-client-id",
+            ClientSecret = "test-client-secret",
+            BaseUrl = "https://mock-api.com"
+        });
+
+        _tokenService = new TokenService(settings, factoryMock.Object, NullLogger<TokenService>.Instance, _clockMock.Object);
     }
 
     [Fact]
     public async Task GetTokenAsync_ReturnsCachedToken_WhenNotExpired()
     {
         // Arrange
-        var service = new TokenService(
-            Options.Create(_mockSettings), _mockHttpClientFactory, _mockLogger.Object);
+        var now = DateTime.UtcNow;
+        var factory = new TokenServiceTestFactory(initialToken: "cached-token");
+
+        factory.ClockMock.SetupSequence(c => c.UtcNow)
+                         .Returns(now)
+                         .Returns(now.AddSeconds(30)); // Within expiration window
 
         // Act
-        var firstToken = await service.GetTokenAsync();
-        var secondToken = await service.GetTokenAsync();
+        var firstToken = await factory.TokenService.GetTokenAsync();
+        var secondToken = await factory.TokenService.GetTokenAsync();
 
         // Assert
-        Assert.Equal(firstToken, secondToken);
         Assert.Equal("cached-token", firstToken);
+        Assert.Equal(firstToken, secondToken);
     }
 
     [Fact]
-    public async Task GetTokenAsync_FetchesNewToken_WhenExpired()
+    public async Task GetTokenAsync_ReturnsNewToken_WhenExpired()
     {
         // Arrange
-        var handler = new ExpiringTokenHandler("initial-token", expiresInSeconds: 1);
-        var client = new HttpClient(handler)
-        {
-            BaseAddress = new Uri(_mockSettings.BaseUrl)
-        };
+        var now = DateTime.UtcNow;
+        var factory = new TokenServiceTestFactory(initialToken: "initial-token");
 
-        var mockFactory = new Mock<IHttpClientFactory>();
-        mockFactory.Setup(f => f.CreateClient(It.IsAny<string>())).Returns(client);
-        var service = new TokenService(
-            Options.Create(_mockSettings), mockFactory.Object, _mockLogger.Object);
+        factory.ClockMock.SetupSequence(c => c.UtcNow)
+                         .Returns(now)                 // Token issued
+                         .Returns(now.AddSeconds(70));  // Simulate token expiry
+
+        factory.Handler.NextToken = "refreshed-token"; // Prepare next token for refresh
 
         // Act
-        var token1 = await service.GetTokenAsync();
-        await Task.Delay(2000);
-        handler.NextToken = "refreshed-token";
-        var token2 = await service.GetTokenAsync();
+        var token1 = await factory.TokenService.GetTokenAsync();
+        var token2 = await factory.TokenService.GetTokenAsync();
+
+        // Assert
+        Assert.NotEqual(token1, token2);
+        Assert.Equal("refreshed-token", token2);
+    }
+
+
+    [Fact]
+    public async Task TokenExpires_WhenClockMovesForward()
+    {
+        // Arrange
+        var now = DateTime.UtcNow;
+        var factory = new TokenServiceTestFactory(initialToken: "initial-token");
+
+        factory.ClockMock.SetupSequence(c => c.UtcNow)
+                         .Returns(now)                  // Token created
+                         .Returns(now.AddSeconds(70));  // Simulated passage of time
+
+        factory.Handler.NextToken = "refreshed-token"; // Simulate refreshable token downstream
+
+        // Act
+        var token1 = await factory.TokenService.GetTokenAsync();
+        var token2 = await factory.TokenService.GetTokenAsync();
 
         // Assert
         Assert.NotEqual(token1, token2);
         Assert.Equal("refreshed-token", token2);
     }
 }
-

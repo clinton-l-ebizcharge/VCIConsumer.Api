@@ -1,4 +1,5 @@
-﻿using VCIConsumer.Api.Models;
+﻿using System.Threading;
+using VCIConsumer.Api.Models;
 using VCIConsumer.Api.Models.Requests;
 using VCIConsumer.Api.Models.Responses;
 
@@ -12,9 +13,6 @@ public class AuthenticationService(IHttpClientFactory httpClientFactory, ILogger
 
     public async Task<string> GetAccessTokenAsync(AuthenticationRequest request)
     {
-        if (_accessToken != null && _accessToken.IsValid)
-            return _accessToken.Token; // Return cached token if valid  
-
         var client = _httpClientFactory.CreateClient("VCIApi");
         var response = await client.PostAsync("authentication", null); // Replace with actual request  
         var responseAsJson = await response.Content.ReadFromJsonAsync<string>();

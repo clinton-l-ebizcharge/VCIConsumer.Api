@@ -43,9 +43,10 @@ public partial class Program {
         builder.Services.AddScoped<ICustomersService, CustomersService>();
         builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
         builder.Services.AddSingleton<ITokenService, TokenService>();
-
-        //builder.Services.AddSingleton<IEndpointFilterFactory, StandardApiFilterFactory>();
+        builder.Services.AddSingleton<ITimeProvider, SystemTimeProvider>();
         
+        //builder.Services.AddSingleton<IEndpointFilterFactory, StandardApiFilterFactory>();
+
         builder.Services.AddAntiforgery();
 
         builder.Services.Configure<LoggingOptions>(builder.Configuration.GetSection("LoggingOptions"));

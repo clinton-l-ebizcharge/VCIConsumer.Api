@@ -7,15 +7,21 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
+using Moq.Protected;
+using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
+using VCIConsumer.Api.Configuration;
 using Xunit;
 
 namespace VCIConsumer.Api.UnitTests.Endpoints;
 
-public class CustomersEndpointsTests
+public class CustomersServiceTests
 {
     /// <summary>
     /// Helper method to create a test client by building a minimal host,
@@ -29,108 +35,131 @@ public class CustomersEndpointsTests
             EnvironmentName = "Testing"
         });
 
-        // Use the in-memory test server.
-        builder.WebHost.UseTestServer(); // Ensure the TestServer package is referenced in your project.
+        // Use the in–memory test server.
+        builder.WebHost.UseTestServer();
 
-        // Register the minimal dependencies:
+        // Register required services.
         builder.Services.AddSingleton<ICustomersService>(customersService);
-        builder.Services.AddHttpClient(); // To satisfy IHttpClientFactory.
+        builder.Services.AddHttpClient(); // Satisfy IHttpClientFactory.
         builder.Services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
 
-        // Build the app and map the endpoints.
+        // Add routing and endpoint explorer so model binding and routing work properly.
+        builder.Services.AddRouting();
+        builder.Services.AddEndpointsApiExplorer();
+
+        // Build the app.
         var app = builder.Build();
+
+        // Configure the middleware pipeline to include developer exception pages and routing.
+        app.UseDeveloperExceptionPage();  // Shows detailed error information in tests.
+        app.UseRouting();
+
+        // Map your endpoints.
         CustomersEndpoints.MapCustomersEndpoints(app);
 
-        // Start the host.
+        // Start the app.
         app.StartAsync().GetAwaiter().GetResult();
 
-        // Return the TestServer HttpClient.
+        // Return the client from the test server.
         return app.GetTestClient();
     }
 
     [Fact]
-    public async Task CustomerListEndpoint_ReturnsSuccessResponse_WithCustomerList()
+    public async Task CustomerListAsync_ReturnsCustomerList_WhenResponseIsSuccessful()
     {
-        // Arrange: Create a fake customer list.  
-        string json = @"
-                   [
-                    {
-                      ""hrid"": ""RKQ2PL28V936BDV"",
-                      ""uuid"": ""CUS_1253058024894410752900095XNTC"",
-                      ""name"": ""customer003"",
-                      ""email_truncated"": ""c**@123.com"",
-                      ""phone_truncated"": ""XXX-XXX-0003"",
-                      ""bank_account"": {
-                        ""account_type"": ""Savings"",
-                        ""account_validated"": false,
-                        ""account_number_truncated"": ""0003"",
-                        ""routing_number_truncated"": ""0006""
-                      },
-                      ""created_at"": ""2025-06-19 14:45:13 ET"",
-                      ""modified_at"": ""2025-06-19 14:45:13 ET"",
-                      ""active"": true
-                    },
-                    {
-                      ""hrid"": ""FLG4AHUTNYJQRFL"",
-                      ""uuid"": ""CUS_1253055232913764352900095XNTC"",
-                      ""name"": ""Customer002"",
-                      ""email_truncated"": ""c**@123.com"",
-                      ""phone_truncated"": ""XXX-XXX-0002"",
-                      ""bank_account"": {
-                        ""account_type"": ""CHECKING"",
-                        ""account_validated"": false,
-                        ""account_number_truncated"": ""0002"",
-                        ""routing_number_truncated"": ""0006""
-                      },
-                      ""created_at"": ""2025-06-19 14:34:08 ET"",
-                      ""modified_at"": ""2025-06-19 14:34:08 ET"",
-                      ""active"": true
-                    },
-                    {
-                      ""hrid"": ""W8ZQQX4FYVMHVLS"",
-                      ""uuid"": ""CUS_1253054927467499520900095XNTC"",
-                      ""name"": ""Customer001"",
-                      ""email_truncated"": ""c**@123.com"",
-                      ""phone_truncated"": ""XXX-XXX-0001"",
-                      ""bank_account"": {
-                        ""account_type"": ""CHECKING"",
-                        ""account_validated"": false,
-                        ""account_number_truncated"": ""0001"",
-                        ""routing_number_truncated"": ""0006""
-                      },
-                      ""created_at"": ""2025-06-19 14:32:55 ET"",
-                      ""modified_at"": ""2025-06-19 14:35:11 ET"",
-                      ""active"": true
-                    }
-                   ]";
+        // Arrange
 
-
-        var fakeCustomerList = JsonSerializer.Deserialize<List<CustomerListResponse>>(json, new JsonSerializerOptions
+        // Create a fake customer list
+        var fakeCustomerList = new List<CustomerListResponse>
+    {
+        new CustomerListResponse
         {
-            PropertyNameCaseInsensitive = true
+            HRId = "001",
+            UUId = "CUS_001",
+            Name = "Test Customer 1",
+            EmailTruncated = "t**@email.com",
+            PhoneTruncated = "XXX-XXX-0001"
+        },
+        new CustomerListResponse
+        {
+            HRId = "002",
+            UUId = "CUS_002",
+            Name = "Test Customer 2",
+            EmailTruncated = "a**@email.com",
+            PhoneTruncated = "XXX-XXX-0002"
+        }
+    };
+
+        // Serialize the fake customer list into JSON.
+        var json = JsonSerializer.Serialize(fakeCustomerList);
+        var fakeResponse = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(json, Encoding.UTF8, "application/json")
+        };
+
+        // Set up a mocked HttpMessageHandler to intercept outgoing HTTP requests.
+        var handlerMock = new Mock<HttpMessageHandler>(MockBehavior.Strict);
+        handlerMock.Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync(fakeResponse)
+            .Verifiable();
+
+        // Create an HttpClient with a base address.
+        var httpClient = new HttpClient(handlerMock.Object)
+        {
+            BaseAddress = new Uri("http://fakeapi.com/")
+        };
+
+        // Set up a mocked IHttpClientFactory that returns our HttpClient.
+        var clientFactoryMock = new Mock<IHttpClientFactory>();
+        clientFactoryMock.Setup(cf => cf.CreateClient(It.Is<string>(s => s == "VCIApi")))
+                         .Returns(httpClient);
+
+        // Set up IOptions<ApiSettings> with the required ClientName.
+        var apiSettings = Options.Create(new ApiSettings
+        {
+            ClientName = "VCIApi"
+            // Additional API settings can be added here if needed.
         });
 
-        // Ensure fakeCustomerList is not null.
-        Assert.NotNull(fakeCustomerList);
+        // Use a null logger (or use your own mocked logger as needed).
+        ILogger<CustomersService> logger = NullLogger<CustomersService>.Instance;
 
-        var mockService = new Mock<ICustomersService>();
-        mockService.Setup(svc => svc.CustomerListAsync(It.IsAny<CustomerListQuery>()))
-                   .ReturnsAsync(fakeCustomerList!);
+        // Create a default HttpContextAccessor (or a mocked version if necessary).
+        var httpContextAccessor = new Microsoft.AspNetCore.Http.HttpContextAccessor();
 
-        var client = CreateTestClient(mockService.Object);
+        // Instantiate the CustomersService with the mocked dependencies.
+        var service = new CustomersService(clientFactoryMock.Object, apiSettings, logger, httpContextAccessor);
 
-        // Act: Invoke GET /customers (the list endpoint).  
-        var response = await client.GetAsync("/customers");
-        response.EnsureSuccessStatusCode();
-        var jsonResponse = await response.Content.ReadAsStringAsync();
+        // Create a sample query to pass to CustomerListAsync.
+        var query = new CustomerListQuery
+        {
+            Sort = "name",
+            Limit_Per_Page = "10",
+            Page_Number = "1"
+        };
 
-        // Assert: We expect a JSON object with Success=true and a Data array containing our list.  
-        using var doc = JsonDocument.Parse(jsonResponse);
-        var success = doc.RootElement.GetProperty("isSuccess").GetBoolean();
-        Assert.True(success, "Expected the success flag to be true");
+        // Act
+        var result = await service.CustomerListAsync(query);
 
-        var data = doc.RootElement.GetProperty("result");
-        Assert.Equal(fakeCustomerList!.Count, data.GetArrayLength());
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(fakeCustomerList.Count, result.Count);
+        Assert.Equal(fakeCustomerList[0].UUId, result[0].UUId);
+        Assert.Equal(fakeCustomerList[0].Name, result[0].Name);
+
+        // Optionally, verify that the sample HTTP GET was called correctly.
+        handlerMock.Protected().Verify(
+            "SendAsync",
+            Times.Once(),
+            ItExpr.Is<HttpRequestMessage>(req =>
+                req.Method == HttpMethod.Get &&
+                req.RequestUri.ToString().StartsWith("http://fakeapi.com/customers")),
+            ItExpr.IsAny<CancellationToken>()
+        );
     }
 
     [Fact]

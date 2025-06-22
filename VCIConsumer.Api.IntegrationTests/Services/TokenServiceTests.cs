@@ -4,6 +4,8 @@ using Microsoft.Extensions.Options;
 using Moq;
 using System.Net;
 using VCIConsumer.Api.Configuration;
+using VCIConsumer.Api.IntegrationTests.Support;
+using VCIConsumer.Api.Models;
 using VCIConsumer.Api.Services;
 
 namespace VCIConsumer.Api.IntegrationTests.Services;
@@ -13,9 +15,15 @@ public class TokenServiceTests : IClassFixture<TestServerSetup>
     private readonly ITokenService _tokenService;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly Mock<ILogger<TokenService>> _mockLogger;
+    private readonly Mock<ITimeProvider> _clockMock;
 
-    public TokenServiceTests(TestServerSetup setup)
+    public TokenServiceTests(TestServerSetup factory)
     {
+        var scope = factory.Services.CreateScope();
+        _clockMock = factory.ClockMock;
+        _tokenService = factory.Services.CreateScope()
+            .ServiceProvider.GetRequiredService<ITokenService>();
+
         var services = new ServiceCollection();
         services.AddHttpClient();
         var serviceProvider = services.BuildServiceProvider();
@@ -30,19 +38,27 @@ public class TokenServiceTests : IClassFixture<TestServerSetup>
             ClientSecret = "test-client-secret"
         });
 
-        _tokenService = new TokenService(mockSettings, _httpClientFactory, _mockLogger.Object);
+        _clockMock.SetupSequence(c => c.UtcNow)
+             .Returns(DateTime.UtcNow)               // token creation
+             .Returns(DateTime.UtcNow.AddSeconds(70));
+
+        _tokenService = new TokenService(mockSettings, _httpClientFactory, _mockLogger.Object, _clockMock.Object);
     }
 
     [Fact]
     public async Task GetTokenAsync_ReturnsValidToken()
     {
+        // Arrange
+        var factory = new TokenServiceTestFactory(initialToken: "mock-access-token");
+
         // Act
-        var token = await _tokenService.GetTokenAsync();
+        var token = await factory.TokenService.GetTokenAsync();
 
         // Assert
         Assert.NotNull(token);
         Assert.Equal("mock-access-token", token);
     }
+
 
     [Fact]
     public async Task GetTokenAsync_ThrowsException_WhenApiFails()
@@ -56,9 +72,8 @@ public class TokenServiceTests : IClassFixture<TestServerSetup>
             .Setup(factory => factory.CreateClient(It.IsAny<string>()))
             .Returns(new HttpClient(handler));
 
-        var failingService = new TokenService(Options.Create(new ApiSettings()), failingHttpClientFactory.Object, _mockLogger.Object);
-
-        // Act & Assert: Expect exception due to failed API call
+        var failingService = new TokenService(Options.Create(new ApiSettings()), failingHttpClientFactory.Object,_mockLogger.Object, _clockMock.Object);
+        
         await Assert.ThrowsAsync<HttpRequestException>(() => failingService.GetTokenAsync());
     }
 }
