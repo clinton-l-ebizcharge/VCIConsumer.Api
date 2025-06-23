@@ -1,18 +1,16 @@
 using FluentValidation;
 using FluentValidation.AspNetCore;
-using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http.Json;
 using Scalar.AspNetCore;
-using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using VCIConsumer.Api.Configuration;
 using VCIConsumer.Api.Endpoints;
+using VCIConsumer.Api.Extensions;
 using VCIConsumer.Api.Filter;
 using VCIConsumer.Api.Handler;
 using VCIConsumer.Api.Models;
-using VCIConsumer.Api.Models.Responses;
 using VCIConsumer.Api.Services;
 
 namespace VCIConsumer.Api;
@@ -34,14 +32,18 @@ public partial class Program {
 
         builder.Services.AddOpenApi();
         builder.Services.AddEndpointsApiExplorer();
-        builder.Services.AddSwaggerGen();
+        builder.Services.AddSwaggerGen(s =>
+        {
+            s.UseInlineDefinitionsForEnums();
+        });
 
         builder.Services.AddFluentValidationAutoValidation();
-        builder.Services.AddValidatorsFromAssemblyContaining<CustomerQueryValidator>();
+        builder.Services.AddValidatorsFromAssemblyContaining<PaymentPostRequestValidator>();
+        builder.Services.AddValidatorsFromAssemblyContaining<CustomerListQueryValidator>();
         builder.Services.AddScoped(typeof(StandardValidatedApiFilter<>));
 
         builder.Services.AddScoped<ICustomersService, CustomersService>();
-        builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
+        builder.Services.AddScoped<IPaymentsService, PaymentsService>();
         builder.Services.AddSingleton<ITokenService, TokenService>();
         builder.Services.AddSingleton<ITimeProvider, SystemTimeProvider>();
         
@@ -68,9 +70,7 @@ public partial class Program {
             client.BaseAddress = new Uri(baseUrl);
 
             client.DefaultRequestHeaders.Accept.Clear();
-            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));            
-            var vericheckVersion = builder.Configuration.GetValue<string>("ApiSettings:VericheckVersion") ?? "1.13";
-            client.DefaultRequestHeaders.Add("VeriCheck-Version", vericheckVersion);            
+            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));                        
         })
         .AddHttpMessageHandler<TokenHandler>()        
         .AddHttpMessageHandler<CorrelationLoggingHandler>();
@@ -99,54 +99,12 @@ public partial class Program {
 
         app.UseHttpsRedirection();
 
-        app.UseExceptionHandler(exceptionHandlerApp =>
-        {
-            exceptionHandlerApp.Run(async httpContext =>
-            {
-                var problemDetailService = httpContext.RequestServices.GetService<IProblemDetailsService>();
-                if (problemDetailService == null
-                    || !await problemDetailService.TryWriteAsync(new() { HttpContext = httpContext }))
-                {
-                    // Fallback behavior
-                    await httpContext.Response.WriteAsync("Fallback: An error occurred.");
-                }
-            });
-        });
-       
-        app.UseExceptionHandler(exceptionHandlerApp =>
-        {
-            exceptionHandlerApp.Run(async context =>
-            {
-                context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
-                context.Response.ContentType = "application/json";
-
-                var exceptionHandlerPathFeature = context.Features.Get<IExceptionHandlerPathFeature>();
-                var exception = exceptionHandlerPathFeature?.Error;
-
-                var errorResponse = new ApiResponse
-                {
-                    IsSuccess = false,
-                    Result = null, // Fix: Set the required 'Result' property to a default value
-                    StatusCode = HttpStatusCode.InternalServerError,
-                    Errors = new List<ErrorResponse>
-                    {
-                        new ErrorResponse
-                        {
-                            Code = "InternalServerError", // Fix: Set required 'Code' property
-                            Message = exception?.Message ?? "An unexpected error occurred.",
-                            Type = "Error" // Fix: Set required 'Type' property
-                        }
-                    }
-                };
-
-                await context.Response.WriteAsJsonAsync(errorResponse);
-            });
-        });
+        app.UseStandardApiExceptionHandler();
 
         app.UseAuthentication();
-
-        app.ConfigureAuthenticationEndpoints();
+        
         app.MapCustomersEndpoints();
+        app.MapPaymentsEndpoints();
 
         app.Run();
     }

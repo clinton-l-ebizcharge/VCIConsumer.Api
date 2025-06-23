@@ -1,6 +1,21 @@
-﻿namespace VCIConsumer.Api.Models.Enums;
+﻿using System.Runtime.Serialization;
+using System.Text.Json.Serialization;
 
-public partial class Enums
+namespace VCIConsumer.Api.Models.Enums
 {
-    public enum PaymentStatuses { ACCEPTED, ERROR, ORIGINATED, SETTLED, PARTIAL_SETTLED, VERIFYING, VOID, RETURN, NSF_DECLINED }
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public enum PaymentStatus
+    {
+        ACCEPTED,
+        ERROR,
+        ORIGINATED,
+        SETTLED,
+        [EnumMember(Value = "PARTIAL SETTLED")]
+        PARTIAL_SETTLED,
+        VERIFYING,
+        VOID,
+        RETURN,
+        [EnumMember(Value = "NSF DECLINED")]
+        NSF_DECLINED
+    }
 }

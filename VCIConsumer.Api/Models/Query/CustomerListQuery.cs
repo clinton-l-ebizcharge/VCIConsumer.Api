@@ -1,20 +1,16 @@
-﻿namespace VCIConsumer.Api.Models.Query;
+﻿using Microsoft.AspNetCore.Mvc;
 
-public class CustomerListQuery
+namespace VCIConsumer.Api.Models.Query
 {
-    /// <summary>
-    /// Sort by `created_at` or `name`. Prefix with "-" for descending.
-    /// </summary>
-    public string? Sort { get; set; }
+    public class CustomerListQuery
+    {
+        [FromQuery(Name = "sort")]
+        public string? Sort { get; set; }
 
-    /// <summary>
-    /// Number of records to return per page.
-    /// </summary>
-    public string? Limit_Per_Page { get; set; }
+        [FromQuery(Name = "limit_per_page")]
+        public int? LimitPerPage { get; set; }
 
-    /// <summary>
-    /// Which page of results to return (starting from 1).
-    /// </summary>
-    public string? Page_Number { get; set; }
+        [FromQuery(Name = "page_number")]
+        public int? PageNumber { get; set; }
+    }
 }
-

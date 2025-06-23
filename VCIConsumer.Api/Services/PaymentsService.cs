@@ -1,113 +1,173 @@
-﻿using Microsoft.Extensions.Options;
-using System.Net.Http;
+﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
+using System.Net;
 using System.Text;
+using System.Text.Json;
 using VCIConsumer.Api.Configuration;
-using VCIConsumer.Api.Models;
+using VCIConsumer.Api.Extensions;
+using VCIConsumer.Api.Models.Query;
+using VCIConsumer.Api.Models.Requests;
 using VCIConsumer.Api.Models.Responses;
 
 namespace VCIConsumer.Api.Services;
 
-public class PaymentsService 
+public class PaymentsService : IPaymentsService
 {
-    private readonly ApiSettings _apiSettings;
-    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly HttpClient _httpClient;
+    private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly ILogger<PaymentsService> _logger;
 
-    public PaymentsService(IOptions<ApiSettings> apiSettings, IHttpClientFactory httpClientFactory, TokenService tokenService)
-       
+    public PaymentsService(IHttpClientFactory httpClientFactory, IOptions<ApiSettings> apiSettings, ILogger<PaymentsService> logger, IHttpContextAccessor httpContextAccessor)
     {
-        _apiSettings = apiSettings.Value;
-        _httpClientFactory = httpClientFactory;
+        var clientName = apiSettings.Value.ClientName ?? "VCIApi";
+        _httpClient = httpClientFactory.CreateClient(clientName);
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _httpContextAccessor = httpContextAccessor;
     }
 
-    public async Task<ApiResponse> PaymentList(Payment.PaymentStatuses paymentStatus, DateTime fromDate, DateTime todate)
+    public async Task<List<PaymentListResponse>?> PaymentListAsync(PaymentListQuery paymentQuery)
     {
-        Dictionary<string, string> DateParas = new Dictionary<string, string>();
-        string fromDatestr = $"{fromDate.Year}-{fromDate.Month.ToString("D2")}-{fromDate.Day.ToString("D2")} {fromDate.Hour.ToString("D2")}:{fromDate.Minute.ToString("D2")}:{fromDate.Second.ToString("D2")}";
-        string toDatestr = $"{todate.Year}-{todate.Month.ToString("D2")}-{todate.Day.ToString("D2")} {todate.Hour.ToString("D2")}:{todate.Minute.ToString("D2")}:{todate.Second.ToString("D2")}";
-        switch (paymentStatus)
-        {
-            case Payment.PaymentStatuses.ORIGINATED:
-                DateParas.Add("originate_at[gte]", fromDatestr);
-                DateParas.Add("originate_at[lte]", toDatestr);
-                break;
-            case Payment.PaymentStatuses.SETTLED:
-            case Payment.PaymentStatuses.PARTIAL_SETTLED:
-                DateParas.Add("settled_at[gte]", fromDatestr);
-                DateParas.Add("settled_at[lte]", toDatestr);
-                break;
-            case Payment.PaymentStatuses.RETURN:
-                DateParas.Add("returned_at[gte]", fromDatestr);
-                DateParas.Add("returned_at[lte]", toDatestr);
-                break;
-            default:
-                DateParas.Add("created_at[gte]", fromDatestr);
-                DateParas.Add("created_at[lte]", toDatestr);
-                break;
-        }
-        StringBuilder strb = new StringBuilder();
-        strb.Append("payments?");
-        strb.Append($"status={paymentStatus.ToString().Replace("_", " ")}");
-        foreach (var kv in DateParas)
-        {
-            strb.Append("&");
-            strb.Append(kv.Key);
-            strb.Append("=");
-            strb.Append(kv.Value);
-        }
-        
-        var apiResponse = await APIGet<Payment[]>(strb.ToString());
-        return apiResponse;
-    }
+        _logger.LogInformation("Fetching payment list with Sort='{Sort}', Limit={Limit}, Page={Page}",
+            paymentQuery.Sort, paymentQuery.LimitPerPage, paymentQuery.PageNumber);
 
-    public async Task<ApiResponse> PaymentDetail(string paymentId)
-    {
-        int i = paymentId.IndexOf("_");
-        string urlPath = "payments";
-        switch (paymentId.Substring(0, i))
+        var queryParams = new Dictionary<string, string?>();
+        queryParams.AddIfNotNullOrWhiteSpace("sort", paymentQuery.Sort);
+        queryParams.AddIfHasValue("limit_per_page", paymentQuery.LimitPerPage);
+        queryParams.AddIfHasValue("page_number", paymentQuery.PageNumber);
+
+        var uriBuilder = new UriBuilder(new Uri(_httpClient.BaseAddress!, "payments"));
+        uriBuilder.AddQueryParameters(queryParams);
+
+        var response = await _httpClient.GetAsync(uriBuilder.Uri);
+
+        if (!response.IsSuccessStatusCode)
         {
-            case "RFN":
-                urlPath = "refunds";
-                break;
-            case "POT":
-                urlPath = "payouts";
-                break;
-            case "PMT":
-                urlPath = "payments";
-                break;
+            var errorBody = await response.Content.ReadAsStringAsync();
+            _logger.LogWarning("Payment list fetch failed. Status: {StatusCode}, Body: {Body}",
+                response.StatusCode, errorBody);
+
+            throw new HttpRequestException($"Upstream service returned {response.StatusCode}: PAYMENTS_FETCH_FAILED");
         }
 
-        var rs = await APIGet<Payment>($"{urlPath}/{paymentId}");
-        return rs;
+        var payments = await response.Content.ReadFromJsonAsync<List<PaymentListResponse>>();
+
+        _logger.LogInformation("Payment list fetched successfully. Count={Count}", payments?.Count ?? 0);
+
+        return payments;
     }
 
-    public async Task<ApiResponse> PaymentCreate(_Customer c, PaymentBase.PaymentEntries entryClass, double amount, _Check check, string description)
+    public async Task<PaymentDetailResponse?> PaymentDetailAsync(string paymentUuId)
     {
-        var requestData = new
+        _logger.LogInformation("Fetching payment detail. Uuid={Uuid}", paymentUuId);
+
+        var response = await _httpClient.GetAsync($"payments/{paymentUuId}");
+
+        if (!response.IsSuccessStatusCode)
         {
-            city = "XXXX",
-            state = "YY",
-            customer = c,
-            check,
-            amount = Math.Round(amount, 2),
-            standard_entry_class = entryClass.ToString().Replace("_", " "),
-            description
-        };
+            var errorJson = await response.Content.ReadAsStringAsync();
 
-        var httpContent = CreateHttpContent(requestData);
-        var ret = await APIPost<_PaymentResult>("payments", httpContent);
+            _logger.LogWarning("Payment detail fetch failed. Status: {StatusCode}, Body: {Body}",
+                response.StatusCode, errorJson);
 
-        return ret;
+            try
+            {
+                var errorEnvelope = JsonSerializer.Deserialize<PaymentApiErrorEnvelope>(errorJson, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+
+                if (errorEnvelope?.Errors?.Count > 0)
+                {
+                    var primary = errorEnvelope.Errors[0];
+                    throw new InvalidOperationException($"Payment fetch error [{primary.Code}]: {primary.Message}");
+                }
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogError(ex, "Failed to deserialize error response. Raw={Json}", errorJson);
+            }
+
+            throw new HttpRequestException($"Upstream service returned {response.StatusCode}: PAYMENT_DETAIL_FETCH_FAILED");
+        }
+
+        var paymentDetailResponse = await response.Content.ReadFromJsonAsync<PaymentDetailResponse>();
+
+        _logger.LogInformation("Payment detail fetch completed. Uuid={Uuid}, Found={Found}",
+            paymentUuId, paymentDetailResponse is not null);
+
+        return paymentDetailResponse;
     }
 
-    public async Task<ApiResponse> PaymentVoid(string paymentId)
+
+    public async Task<PaymentPostResponse?> PaymentPostAsync(PaymentPostRequest request)
     {
-        var rs = await APIPatch<_PaymentResult>($"payments/{paymentId}", CreateHttpContent(new { status = Payment.PaymentStatuses.VOID.ToString().Replace("_", " ") }));
-        return rs;
+        //_logger.LogInformation("Creating payment. CustomerUuid={Uuid}, Amount={Amount}, SEC={Sec}",
+        //    request.Customer, request.Amount, request.StandardEntryClass);
+
+        var httpContent = JsonContent.Create(request);
+        var response = await _httpClient.PostAsync("payments", httpContent);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorJson = await response.Content.ReadAsStringAsync();
+
+            _logger.LogWarning("Payment post failed. Status: {StatusCode}, Body: {Body}",
+                response.StatusCode, errorJson);
+
+            try
+            {
+                var errorEnvelope = JsonSerializer.Deserialize<PaymentApiErrorEnvelope>(errorJson, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+
+                if (errorEnvelope?.Errors?.Count > 0)
+                {
+                    var primary = errorEnvelope.Errors[0];
+                    throw new InvalidOperationException($"Payment post error [{primary.Code}]: {primary.Message}");
+                }
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogError(ex, "Failed to deserialize error response. Raw={Json}", errorJson);
+            }
+
+            throw new HttpRequestException($"Upstream service returned {response.StatusCode} errorJson: {errorJson}: PAYMENT_POST_FAILED");
+        }
+
+        var postedPayment = await response.Content.ReadFromJsonAsync<PaymentPostResponse>();
+
+        _logger.LogInformation("Payment created successfully. UUID={Uuid}, Status={Status}",
+            postedPayment?.UUId, postedPayment?.Status);
+
+        return postedPayment;
     }
 
-    public async Task<ApiResponse> PaymentUpdate(string paymentId, Payment.PaymentStatuses status)
+    public async Task<PaymentPostWithTokenResponse> PaymentPostWithTokenAsync(string customer_uuid, PaymentPostWithTokenRequest request)
     {
-        var rs = await APIPatch<_PaymentResult>($"payments/{paymentId}", CreateHttpContent(new { status = status.ToString().Replace("_", " ") }));
-        return rs;
+        //TODO:  CTL Add Custoemr_UUID to the request custoemr object
+        //_logger.LogInformation($"Posting a Payment: {request.Name}, {request.Email}");
+
+        var httpContent = JsonContent.Create(request);
+        var response = await _httpClient.PostAsync("Payments", httpContent);
+        response.EnsureSuccessStatusCode();
+
+        var createdPayment = await response.Content.ReadFromJsonAsync<PaymentPostWithTokenResponse>();
+
+        //_logger.LogInformation("Payment created successfully. UUID: {Uuid}", createdPayment?.UUId);
+        return createdPayment!;
     }
+
+    public async Task<PaymentUpdateResponse> PaymentUpdateAsync(string payment_uuid, PaymentUpdateRequest request)
+    {
+        //_logger.LogInformation("Updating Payment {Uuid}", request.UUId);
+
+        var httpContent = JsonContent.Create(request);
+        var response = await _httpClient.PatchAsync("Payments", httpContent);
+        response.EnsureSuccessStatusCode();
+
+        var updated = await response.Content.ReadFromJsonAsync<PaymentUpdateResponse>();
+        return updated!;
+    }    
+
 }

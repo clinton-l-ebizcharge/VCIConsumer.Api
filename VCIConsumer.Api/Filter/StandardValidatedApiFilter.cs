@@ -27,14 +27,15 @@ public class StandardValidatedApiFilter<T> : IEndpointFilter
                     Type = "Validation"
                 });
 
+                // Ensure the error message passed to ToFailureResponse is not null
+                var errorMessage = "Validation failed";
                 return new ApiResponse
                 {
                     IsSuccess = false,
                     StatusCode = HttpStatusCode.BadRequest,
-                    Errors = errors.ToList(),
-                    Result = new object(),
+                    Errors = errors.ToList(),                    
                     Timestamp = DateTime.UtcNow
-                }.ToString().ToFailureResponse("Validation failed");
+                }.ToString().ToFailureResponse(errorMessage ?? "Unknown error");
             }
         }
 

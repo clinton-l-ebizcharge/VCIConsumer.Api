@@ -1,4 +1,4 @@
-﻿namespace VCIConsumer.Api.Models;
+﻿namespace VCIConsumer.Api.Configuration;
 
 public class LoggingOptions
 {

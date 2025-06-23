@@ -134,12 +134,12 @@ public class CustomersServiceTests
         // Instantiate the CustomersService with the mocked dependencies.
         var service = new CustomersService(clientFactoryMock.Object, apiSettings, logger, httpContextAccessor);
 
-        // Create a sample query to pass to CustomerListAsync.
+        // Update the property name to match the correct definition in CustomerListQuery.
         var query = new CustomerListQuery
         {
             Sort = "name",
-            Limit_Per_Page = "10",
-            Page_Number = "1"
+            LimitPerPage = 10, 
+            PageNumber = 1     
         };
 
         // Act

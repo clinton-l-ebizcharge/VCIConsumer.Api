@@ -16,20 +16,23 @@ public static class CustomersEndpoints
     public static void MapCustomersEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/customers")
-               .WithTags("Customers")                
-               .WithOpenApi();
+               .WithTags("Customers")
+               .WithOpenApi();                              
 
         group.MapGet(
-            "/", CustomerList)
-            .WithName("Customer List")
+            "/", CustomerListAsync)
+            .WithName("CustomerList")
+            .WithOpenApi()
             .WithStandardApiResponses()
+            .Produces<ApiResponse>(StatusCodes.Status404NotFound, "application/json")
             .AddEndpointFilter<StandardApiFilter<List<CustomerListResponse>>>()
             .AddEndpointFilter<StandardValidatedApiFilter<CustomerListQuery>>();
 
         group.MapGet(
-            "/{customer_uuid}", CustomerDetail)
-            .WithName("Customer Detail")
-            .WithStandardApiResponses()            
+            "/{customer_uuid}", CustomerDetailAsync)
+            .WithName("CustomerDetail")
+            .WithStandardApiResponses()
+            .Produces<ApiResponse>(StatusCodes.Status404NotFound, "application/json")
             .AddEndpointFilter<StandardApiFilter<List<CustomerDetailResponse>>>()
             .AddSimpleInputValidation<string>(uuid =>
             {
@@ -46,20 +49,20 @@ public static class CustomersEndpoints
                 return (true, null);
             });
 
-        group.MapPost("/", CustomerCreation)
-            .WithName("Customer Creation")
+        group.MapPost("/", CustomerCreationAsync)
+            .WithName("CustomerCreation")
             .Accepts<CustomerCreationRequest>("application/json")
             .WithStandardApiResponses()
             .AddEndpointFilter<StandardApiFilter<CustomerCreationResponse>>(); 
 
-        group.MapPatch("/", CustomerUpdate)
-            .WithName("Customer Update")
+        group.MapPatch("/", CustomerUpdateAsync)
+            .WithName("CustomerUpdate")
             .Accepts<CustomerCreationRequest>("application/json")
             .WithStandardApiResponses()
             .AddEndpointFilter<StandardApiFilter<CustomerCreationResponse>>();
     }
 
-    private static async Task<IResult> CustomerList(
+    private static async Task<IResult> CustomerListAsync(
         [AsParameters] CustomerListQuery query,
         [FromServices] ICustomersService customersservice)
     {        
@@ -67,7 +70,7 @@ public static class CustomersEndpoints
         return response.ToSuccessResponse();
     }
 
-    private static async Task<IResult> CustomerDetail(
+    private static async Task<IResult> CustomerDetailAsync(
         [FromRoute] string customer_uuid,
         [FromServices] ICustomersService customersservice, 
         [FromServices] IHttpClientFactory httpClientFactory)
@@ -76,7 +79,7 @@ public static class CustomersEndpoints
         return response.ToSuccessResponse();
     }
 
-    private static async Task<IResult> CustomerCreation(
+    private static async Task<IResult> CustomerCreationAsync(
         [FromServices] ICustomersService customersservice, 
         [FromServices] IHttpClientFactory httpClientFactory, 
         [FromBody] CustomerCreationRequest request)
@@ -85,7 +88,7 @@ public static class CustomersEndpoints
        return response.ToSuccessResponse();
     }
 
-    private static async Task<IResult> CustomerUpdate(
+    private static async Task<IResult> CustomerUpdateAsync(
         [FromServices] ICustomersService customersservice, 
         [FromServices] IHttpClientFactory httpClientFactory,
         [FromBody] CustomerUpdateRequest request)

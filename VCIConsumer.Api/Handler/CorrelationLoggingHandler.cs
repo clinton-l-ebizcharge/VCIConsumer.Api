@@ -1,8 +1,8 @@
 ﻿using Microsoft.Extensions.Options;
 using System.Diagnostics;
 using System.Text.Json;
+using VCIConsumer.Api.Configuration;
 using VCIConsumer.Api.Extensions;
-using VCIConsumer.Api.Models;
 
 namespace VCIConsumer.Api.Handler;
 

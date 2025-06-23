@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using System.Net;
 using System.Text;
@@ -27,22 +28,19 @@ public class CustomersService : ICustomersService
 
     public async Task<List<CustomerListResponse>> CustomerListAsync(CustomerListQuery customerQuery)
     {
-        _logger.LogInformation("Fetching customer list with Sort='{Sort}', Limit={Limit}, Page={PageNumber}",
-            customerQuery.Sort, customerQuery.Limit_Per_Page, customerQuery.Page_Number);
+        _logger.LogSummary(customerQuery); 
 
         var queryParams = new Dictionary<string, string?>();
 
-        if (!string.IsNullOrWhiteSpace(customerQuery.Sort))
-            queryParams["sort"] = customerQuery.Sort;
+        queryParams.AddIfNotNullOrWhiteSpace("sort", customerQuery.Sort);
+        queryParams.AddIfHasValue("limit_per_page", customerQuery.LimitPerPage);
+        queryParams.AddIfHasValue("page_number", customerQuery.PageNumber);
 
-        if (!string.IsNullOrWhiteSpace(customerQuery.Limit_Per_Page))
-            queryParams["limit_per_page"] = customerQuery.Limit_Per_Page;
-
-        if (!string.IsNullOrWhiteSpace(customerQuery.Page_Number))
-            queryParams["page_number"] = customerQuery.Page_Number;
-
-        var uriBuilder = new UriBuilder(_httpClient.BaseAddress + "customers");
+        var uriBuilder = new UriBuilder(new Uri(_httpClient.BaseAddress!, "customers"));
         uriBuilder.AddQueryParameters(queryParams);
+
+        var request = new HttpRequestMessage(HttpMethod.Get, uriBuilder.Uri);
+        request.Headers.Add("Vericheck-Version", "1");
 
         var response = await _httpClient.GetAsync(uriBuilder.Uri);
 
@@ -57,16 +55,16 @@ public class CustomersService : ICustomersService
 
         var customers = await response.Content.ReadFromJsonAsync<List<CustomerListResponse>>();
 
-        if (customers == null)
+        if (customers is null)
         {
             _logger.LogError("Customer list fetch returned null.");
             throw new InvalidOperationException("Customer list fetch failed: null response.");
         }
 
         _logger.LogInformation("Customer list fetched successfully. Count={Count}", customers.Count);
-
         return customers;
     }
+
 
     public async Task<CustomerDetailResponse> CustomerDetailAsync(string customerUuid)
     {
@@ -89,11 +87,11 @@ public class CustomersService : ICustomersService
 
         if (customer == null)
         {
-            _logger.LogError("Customer detail response deserialized as null. Uuid={Uuid}", customerUuid);
+            _logger.LogError("Customer detail response deserialized as null. uuid={uuid}", customerUuid);
             throw new InvalidOperationException("Customer detail fetch failed: null response.");
         }
 
-        _logger.LogInformation("Customer detail fetched successfully. Name={Name}, Uuid={Uuid}",
+        _logger.LogInformation("Customer detail fetched successfully. Name={Name}, uuid={Uuid}",
             customer.Name, customer.UUId);
 
         return customer;
@@ -101,27 +99,69 @@ public class CustomersService : ICustomersService
 
     public async Task<CustomerCreationResponse> CustomerCreationAsync(CustomerCreationRequest request)
     {
-        _logger.LogInformation($"Creating new customer: {request.Name}, {request.Email}");
+        _logger.LogInformation("Creating new customer: {Name}, {Email}", request.Name, request.Email);
 
-        var httpContent = JsonContent.Create(request);
-        var response = await _httpClient.PostAsync("customers", httpContent);
-        response.EnsureSuccessStatusCode();
+        var httpRequest = new HttpRequestMessage(HttpMethod.Post, "customers")
+        {
+            Content = JsonContent.Create(request)
+        };
 
-        var createdCustomer = await response.Content.ReadFromJsonAsync<CustomerCreationResponse>();
+        httpRequest.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
 
-        _logger.LogInformation("Customer created successfully. UUID: {Uuid}", createdCustomer?.UUId);
-        return createdCustomer!;
+        var response = await _httpClient.SendAsync(httpRequest);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync();
+            _logger.LogWarning("Customer creation failed. Status: {StatusCode}, Body: {Body}", response.StatusCode, errorBody);
+            throw new HttpRequestException($"Upstream service returned {response.StatusCode}: CUSTOMER_CREATE_FAILED");
+        }
+
+        var result = await response.Content.ReadFromJsonAsync<CustomerCreationResponse>();
+
+        if (result is null)
+        {
+            _logger.LogError("Customer creation response was null.");
+            throw new InvalidOperationException("Customer creation failed: null response.");
+        }
+
+        _logger.LogInformation("Customer created successfully. uuid={uuid}", result.UUId);
+        return result;
     }
+
 
     public async Task<CustomerUpdateResponse> CustomerUpdateAsync(CustomerUpdateRequest request)
     {
-        _logger.LogInformation("Updating customer {Uuid}", request.UUId);
+        _logger.LogInformation("Updating customer {uuid}", request.UUId);
 
-        var httpContent = JsonContent.Create(request);
-        var response = await _httpClient.PatchAsync("customers", httpContent);
-        response.EnsureSuccessStatusCode();
+        var httpRequest = new HttpRequestMessage(HttpMethod.Patch, "customers")
+        {
+            Content = JsonContent.Create(request)
+        };
+
+        httpRequest.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+
+        var response = await _httpClient.SendAsync(httpRequest);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync();
+            _logger.LogWarning("Customer update failed. Status: {StatusCode}, Body: {Body}",
+                response.StatusCode, errorBody);
+
+            throw new HttpRequestException($"Upstream service returned {response.StatusCode}: CUSTOMER_UPDATE_FAILED");
+        }
 
         var updated = await response.Content.ReadFromJsonAsync<CustomerUpdateResponse>();
-        return updated!;
+
+        if (updated is null)
+        {
+            _logger.LogError("Customer update returned null.");
+            throw new InvalidOperationException("Customer update failed: null response.");
+        }
+
+        _logger.LogInformation("Customer updated successfully. uuid={uuid}", updated.UUId);
+        return updated;
     }
+
 }

@@ -8,18 +8,22 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Endpoints\AuthenticationEndpoints.cs" />
+    <Compile Remove="Endpoints\ServiceEndpoints1.cs" />
+    <Compile Remove="Extensions\ExceptionExtensions.cs" />
     <Compile Remove="Filter\StandardApiFilterFactory.cs" />
     <Compile Remove="Models\payment.cs" />
+    <Compile Remove="Models\Requests\_BankAccountWithCheck.cs" />
     <Compile Remove="Models\VCIAuthResponse.cs" />
     <Compile Remove="Services\APIConsumption.cs" />
     <Compile Remove="Services\IVCIService.cs" />
-    <Compile Remove="Services\PaymentsService.cs" />
     <Compile Remove="Services\PayoutsService.cs" />
     <Compile Remove="Services\PrenotesService.cs" />
     <Compile Remove="Services\RefundsService.cs" />
     <Compile Remove="Services\VCIProcessing.cs" />
     <Compile Remove="Services\VCIProcessingService.cs" />
     <Compile Remove="Services\VCIService.cs" />
+    <Compile Remove="Services\_PaymentsService.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -35,7 +39,6 @@
   <ItemGroup>
     <Folder Include="Data\" />
     <Folder Include="Repository\" />
-    <Folder Include="Validations\" />
   </ItemGroup>
 
 </Project>

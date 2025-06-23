@@ -1,6 +1,17 @@
-﻿namespace VCIConsumer.Api.Models.Enums;
+﻿using System.Text.Json.Serialization;
+
+namespace VCIConsumer.Api.Models.Enums;
 
 public partial class Enums
 {
-    public enum PaymentEntries { PPD, CCD, BOC, WEB, POP, TEL }
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public enum StandardEntryClass
+    {
+        PPD,
+        CCD,
+        BOC,
+        WEB,
+        TEL,
+        POP
+    }
 }
