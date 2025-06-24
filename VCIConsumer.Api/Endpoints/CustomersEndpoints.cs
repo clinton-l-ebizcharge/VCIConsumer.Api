@@ -25,7 +25,7 @@ public static class CustomersEndpoints
             .WithOpenApi()
             .WithStandardApiResponses()
             .Produces<ApiResponse>(StatusCodes.Status404NotFound, "application/json")
-            .AddEndpointFilter<StandardApiFilter<List<CustomerListResponse>>>()
+            .AddEndpointFilter<StandardApiFilter<CustomerListResponse>>()
             .AddEndpointFilter<StandardValidatedApiFilter<CustomerListQuery>>();
 
         group.MapGet(

@@ -5,9 +5,9 @@ using VCIConsumer.Api.Models.Responses;
 namespace VCIConsumer.Api.Services;
 public interface IPaymentsService
 {
-    Task<List<PaymentListResponse>?> PaymentListAsync(PaymentListQuery query);
-    Task<PaymentDetailResponse> PaymentDetailAsync(string paymentUuId);
+    Task<PaymentListResponse?> PaymentListAsync(PaymentListQuery query);
+    Task<PaymentDetailResponse> PaymentDetailAsync(string payment_uuid);
     Task<PaymentPostResponse> PaymentPostAsync(PaymentPostRequest request);
     Task<PaymentPostWithTokenResponse> PaymentPostWithTokenAsync(string customer_uuid, PaymentPostWithTokenRequest request);
-    Task<PaymentUpdateResponse> PaymentUpdateAsync(string paymentUuId, PaymentUpdateRequest request);
+    Task<PaymentUpdateResponse> PaymentUpdateAsync(string payment_uuid, PaymentUpdateRequest request);
 }

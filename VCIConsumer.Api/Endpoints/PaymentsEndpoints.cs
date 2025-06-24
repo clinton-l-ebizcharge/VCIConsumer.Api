@@ -26,7 +26,7 @@ public static class PaymentsEndpoints
             .WithOpenApi()
             .WithStandardApiResponses()
             .Produces<ApiResponse>(StatusCodes.Status404NotFound, "application/json")
-            .AddEndpointFilter<StandardApiFilter<List<PaymentListResponse>>>()
+            .AddEndpointFilter<StandardApiFilter<PaymentListResponse>>()
             .AddEndpointFilter<StandardValidatedApiFilter<PaymentListQuery>>();
 
         group.MapGet(
@@ -124,10 +124,10 @@ public static class PaymentsEndpoints
     private static async Task<IResult> PaymentUpdateAsync(
         [FromServices] IPaymentsService paymentsService,
         [FromServices] IHttpClientFactory httpClientFactory,
-        [FromRoute] string paymentUuId,
+        [FromRoute] string payment_uuid,
         [FromBody] PaymentUpdateRequest request)
     {
-        var response = await paymentsService.PaymentUpdateAsync(paymentUuId, request);
+        var response = await paymentsService.PaymentUpdateAsync(payment_uuid, request);
         return response.ToApiResult();
     }
 

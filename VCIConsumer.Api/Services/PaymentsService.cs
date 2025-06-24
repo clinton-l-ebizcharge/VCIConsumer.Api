@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using VCIConsumer.Api.Configuration;
 using VCIConsumer.Api.Extensions;
+using VCIConsumer.Api.Handler;
 using VCIConsumer.Api.Models.Query;
 using VCIConsumer.Api.Models.Requests;
 using VCIConsumer.Api.Models.Responses;
@@ -25,7 +26,7 @@ public class PaymentsService : IPaymentsService
         _httpContextAccessor = httpContextAccessor;
     }
 
-    public async Task<List<PaymentListResponse>?> PaymentListAsync(PaymentListQuery paymentQuery)
+    public async Task<PaymentListResponse?> PaymentListAsync(PaymentListQuery paymentQuery)
     {
         _logger.LogInformation("Fetching payment list with Sort='{Sort}', Limit={Limit}, Page={Page}",
             paymentQuery.Sort, paymentQuery.LimitPerPage, paymentQuery.PageNumber);
@@ -49,18 +50,22 @@ public class PaymentsService : IPaymentsService
             throw new HttpRequestException($"Upstream service returned {response.StatusCode}: PAYMENTS_FETCH_FAILED");
         }
 
-        var payments = await response.Content.ReadFromJsonAsync<List<PaymentListResponse>>();
+        //If unsure of response - Use to DEBUG
+        var raw = await response.Content.ReadAsStringAsync();
+        _logger.LogWarning("Raw customer JSON: {Json}", raw);
 
-        _logger.LogInformation("Payment list fetched successfully. Count={Count}", payments?.Count ?? 0);
+        var paymentListResponse = await response.Content.ReadFromJsonAsync<PaymentListResponse>();
 
-        return payments;
+        _logger.LogInformation("Payment list fetched successfully. Count={Count}", paymentListResponse?.Payments?.Count ?? 0);
+
+        return paymentListResponse;
     }
 
-    public async Task<PaymentDetailResponse?> PaymentDetailAsync(string paymentUuId)
+    public async Task<PaymentDetailResponse?> PaymentDetailAsync(string payment_uuid)
     {
-        _logger.LogInformation("Fetching payment detail. Uuid={Uuid}", paymentUuId);
+        _logger.LogInformation("Fetching payment detail. Uuid={Uuid}", payment_uuid);
 
-        var response = await _httpClient.GetAsync($"payments/{paymentUuId}");
+        var response = await _httpClient.GetAsync($"payments/{payment_uuid}");
 
         if (!response.IsSuccessStatusCode)
         {
@@ -93,7 +98,7 @@ public class PaymentsService : IPaymentsService
         var paymentDetailResponse = await response.Content.ReadFromJsonAsync<PaymentDetailResponse>();
 
         _logger.LogInformation("Payment detail fetch completed. Uuid={Uuid}, Found={Found}",
-            paymentUuId, paymentDetailResponse is not null);
+            payment_uuid, paymentDetailResponse is not null);
 
         return paymentDetailResponse;
     }
@@ -104,9 +109,16 @@ public class PaymentsService : IPaymentsService
         //_logger.LogInformation("Creating payment. CustomerUuid={Uuid}, Amount={Amount}, SEC={Sec}",
         //    request.Customer, request.Amount, request.StandardEntryClass);
 
-        var httpContent = JsonContent.Create(request);
-        var response = await _httpClient.PostAsync("payments", httpContent);
+        var httpRequest = new HttpRequestMessage(HttpMethod.Post, "payments")
+        {
+            Content = JsonContent.Create(request)
+        };
 
+        httpRequest.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+
+        var httpContent = JsonContent.Create(request);
+        var response = await _httpClient.SendAsync(httpRequest);
+        
         if (!response.IsSuccessStatusCode)
         {
             var errorJson = await response.Content.ReadAsStringAsync();
@@ -143,31 +155,83 @@ public class PaymentsService : IPaymentsService
         return postedPayment;
     }
 
-    public async Task<PaymentPostWithTokenResponse> PaymentPostWithTokenAsync(string customer_uuid, PaymentPostWithTokenRequest request)
+    public async Task<PaymentPostWithTokenResponse?> PaymentPostWithTokenAsync(string customer_uuid, PaymentPostWithTokenRequest request)
     {
-        //TODO:  CTL Add Custoemr_UUID to the request custoemr object
-        //_logger.LogInformation($"Posting a Payment: {request.Name}, {request.Email}");
 
-        var httpContent = JsonContent.Create(request);
-        var response = await _httpClient.PostAsync("Payments", httpContent);
-        response.EnsureSuccessStatusCode();
+        _logger.LogInformation("Posting payment with token. CustomerUuid={Uuid}, Amount={Amount}, SEC={Sec}",
+            customer_uuid, request.Amount, request.StandardEntryClass);
+
+        request.Customer ??= new PaymentPostWithTokenCustomerRequest() { UUId = customer_uuid };
+
+        var httpRequest = new HttpRequestMessage(HttpMethod.Post, "payments")
+        {
+            Content = JsonContent.Create(request)
+        };
+
+        httpRequest.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        var response = await _httpClient.SendAsync(httpRequest);
+
+        if ((int)response.StatusCode >= 500 && (int)response.StatusCode < 600)
+        {
+            return (PaymentPostWithTokenResponse?)(object?)await UpstreamResponseHandler.HandleFailureAsync(
+                response, _logger, "PaymentPostWithToken");
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync();
+            _logger.LogWarning("Payment post failed. Status={StatusCode}, Body={Body}",
+                response.StatusCode, errorBody);
+
+            throw new HttpRequestException($"Payment post failed with status {(int)response.StatusCode}: {response.ReasonPhrase}");
+        }
+
+        //If unsure of response - Use to DEBUG
+        var raw = await response.Content.ReadAsStringAsync();
+        _logger.LogWarning("Raw customer JSON: {Json}", raw);
 
         var createdPayment = await response.Content.ReadFromJsonAsync<PaymentPostWithTokenResponse>();
 
-        //_logger.LogInformation("Payment created successfully. UUID: {Uuid}", createdPayment?.UUId);
-        return createdPayment!;
+        //_logger.LogInformation("Payment with token created successfully. UUID={Uuid}, Status={Status}",
+        //    createdPayment?., createdPayment?.Status);
+
+        return createdPayment;
     }
 
-    public async Task<PaymentUpdateResponse> PaymentUpdateAsync(string payment_uuid, PaymentUpdateRequest request)
-    {
-        //_logger.LogInformation("Updating Payment {Uuid}", request.UUId);
 
-        var httpContent = JsonContent.Create(request);
-        var response = await _httpClient.PatchAsync("Payments", httpContent);
-        response.EnsureSuccessStatusCode();
+    public async Task<PaymentUpdateResponse?> PaymentUpdateAsync(string paymentUuid, PaymentUpdateRequest request)
+    {
+        _logger.LogInformation("Updating payment. Uuid={Uuid}", paymentUuid);
+
+        var httpRequest = new HttpRequestMessage(HttpMethod.Patch, "payments")
+        {
+            Content = JsonContent.Create(request)
+        };
+
+        httpRequest.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+
+        var response = await _httpClient.SendAsync(httpRequest);
+
+        if ((int)response.StatusCode >= 500 && (int)response.StatusCode < 600)
+        {
+            await UpstreamResponseHandler.HandleFailureAsync(response, _logger, "PaymentUpdate");
+            throw new HttpRequestException($"Upstream service returned {response.StatusCode}: PAYMENT_UPDATE_FAILED");
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var rawError = await response.Content.ReadAsStringAsync();
+            _logger.LogWarning("Payment update failed. Status={StatusCode}, Body={Body}", response.StatusCode, rawError);
+            throw new HttpRequestException($"Payment update failed with status {(int)response.StatusCode}");
+        }
 
         var updated = await response.Content.ReadFromJsonAsync<PaymentUpdateResponse>();
-        return updated!;
-    }    
+
+        //TODO:  CTL Fix
+        //_logger.LogInformation("Payment update completed. Uuid={Uuid}, Status={Status}",
+
+        return updated;
+    }
+
 
 }

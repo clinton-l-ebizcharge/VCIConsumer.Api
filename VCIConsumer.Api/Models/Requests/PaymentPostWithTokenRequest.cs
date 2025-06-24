@@ -10,7 +10,7 @@ public class PaymentPostWithTokenRequest
     [JsonPropertyName("standard_entry_class")]
     public required StandardEntryClass StandardEntryClass { get; set; }
     [JsonPropertyName("customer")]
-    public required PaymentPostWithTokenCustomerRequest Customer { get; set; }
+    public PaymentPostWithTokenCustomerRequest Customer { get; set; }
     [JsonPropertyName("description")]
     public required string Description { get; set; }
     [JsonPropertyName("addenda")]

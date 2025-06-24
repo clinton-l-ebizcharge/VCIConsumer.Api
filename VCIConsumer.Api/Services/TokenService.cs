@@ -69,6 +69,8 @@ public class TokenService(
             };
 
             _logger.LogInformation("Issued new access token at {CreatedAt}, Expires at {ExpiresAt}", _accessToken.CreatedAt, _accessToken.ExpiresAt);
+            _logger.LogDebug("Token {token}", _accessToken.Token);
+
             return _accessToken.Token;
         }
         catch (Exception ex)

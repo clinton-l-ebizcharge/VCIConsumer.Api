@@ -26,7 +26,7 @@ public class CustomersService : ICustomersService
         _httpContextAccessor = httpContextAccessor;
     }
 
-    public async Task<List<CustomerListResponse>> CustomerListAsync(CustomerListQuery customerQuery)
+    public async Task<CustomerListResponse?> CustomerListAsync(CustomerListQuery customerQuery)
     {
         _logger.LogSummary(customerQuery); 
 
@@ -53,16 +53,16 @@ public class CustomersService : ICustomersService
             throw new HttpRequestException($"Upstream service returned {response.StatusCode}: CUSTOMERS_FETCH_FAILED");
         }
 
-        var customers = await response.Content.ReadFromJsonAsync<List<CustomerListResponse>>();
+        var customerListResponse = await response.Content.ReadFromJsonAsync<CustomerListResponse>();
 
-        if (customers is null)
+        if (customerListResponse is null)
         {
             _logger.LogError("Customer list fetch returned null.");
             throw new InvalidOperationException("Customer list fetch failed: null response.");
         }
 
-        _logger.LogInformation("Customer list fetched successfully. Count={Count}", customers.Count);
-        return customers;
+        _logger.LogInformation("Customer list fetched successfully. Count={Count}", customerListResponse.Customers.Count);
+        return customerListResponse;
     }
 
 

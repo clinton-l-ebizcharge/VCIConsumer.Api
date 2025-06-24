@@ -37,16 +37,20 @@ public partial class Program {
             s.UseInlineDefinitionsForEnums();
         });
 
+        //FluentValidation setup
         builder.Services.AddFluentValidationAutoValidation();
-        builder.Services.AddValidatorsFromAssemblyContaining<PaymentPostRequestValidator>();
         builder.Services.AddValidatorsFromAssemblyContaining<CustomerListQueryValidator>();
+        builder.Services.AddValidatorsFromAssemblyContaining<PaymentPostRequestValidator>();
+        builder.Services.AddValidatorsFromAssemblyContaining<PaymentPostWithTokenRequestValidator>();        
         builder.Services.AddScoped(typeof(StandardValidatedApiFilter<>));
 
+        //Service registrations
         builder.Services.AddScoped<ICustomersService, CustomersService>();
         builder.Services.AddScoped<IPaymentsService, PaymentsService>();
         builder.Services.AddSingleton<ITokenService, TokenService>();
         builder.Services.AddSingleton<ITimeProvider, SystemTimeProvider>();
-        
+
+        //TODO: CTL - Uncomment if you want to use the StandardApiFilterFactory
         //builder.Services.AddSingleton<IEndpointFilterFactory, StandardApiFilterFactory>();
 
         builder.Services.AddAntiforgery();
